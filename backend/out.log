@@ -1,0 +1,4 @@
+
+2026/04/04 11:27:36 [35m/Users/finale1891/projects/personal-rag/netease-music-rag/backend/cmd/server/main.go:16
+[0m[31m[error] [0mfailed to initialize database, got error failed to connect to `user=postgres database=music-rag`: 198.18.1.44:5432 (db.zqvjfjrhloemqbdtsqwd.supabase.co): failed to receive message: unexpected EOF
+2026/04/04 11:27:36 Unable to connect to database via GORM: failed to connect to `user=postgres database=music-rag`: 198.18.1.44:5432 (db.zqvjfjrhloemqbdtsqwd.supabase.co): failed to receive message: unexpected EOF
