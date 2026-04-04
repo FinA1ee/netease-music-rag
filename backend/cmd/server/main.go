@@ -3,34 +3,49 @@ package main
 import (
 	"log"
 
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-
 	"netease-music-rag/backend/internal/config"
-	"netease-music-rag/backend/internal/model"
+	"netease-music-rag/backend/internal/service"
 )
 
 func main() {
 	cfg := config.Load()
 
-	db, err := gorm.Open(postgres.Open(cfg.PostgresDSN), &gorm.Config{})
-	if err != nil {
-		log.Fatalf("Unable to connect to database via GORM: %v", err)
-	}
+	// db, err := gorm.Open(postgres.Open(cfg.PostgresDSN), &gorm.Config{})
+	// if err != nil {
+	// 	log.Fatalf("Unable to connect to database via GORM: %v", err)
+	// }
 
-	// Auto migrate matching the new struct format
-	db.Exec("CREATE EXTENSION IF NOT EXISTS vector;")
-	// Setup vector column explicitly since AutoMigrate doesn't fully understand vector types sometimes
-	db.AutoMigrate(&model.Songs{})
+	// // Auto migrate matching the new struct format
+	// db.Exec("CREATE EXTENSION IF NOT EXISTS vector;")
+	// // Setup vector column explicitly since AutoMigrate doesn't fully understand vector types sometimes
+	// db.AutoMigrate(&model.Songs{})
 
-	log.Println("Connected to PostgreSQL successfully via GORM.")
+	// log.Println("Connected to PostgreSQL successfully via GORM.")
 
 	// // Init Repo
 	// repo := repository.NewSongRepo(db)
 
-	// // Init Services
-	// neteaseClient := service.NewNeteaseClient(cfg)
-	// llmClient, err := service.NewLLMClient(cfg.GeminiAPIKey, cfg.LLMModel, cfg.EmbeddingModel)
+	// Init Services
+	neteaseClient := service.NewNeteaseClient(cfg)
+	if neteaseClient == nil {
+		log.Fatalf("Netease client init failed")
+	}
+
+	if cfg.NeteasePhone != "" {
+		if err := neteaseClient.Login(cfg.NeteasePhone); err != nil {
+			log.Printf("Netease login failed: %v", err)
+		}
+	}
+
+	recommendSongs, err := neteaseClient.GetDailyRecommendations()
+	if err != nil {
+		log.Fatalf("Netease get recommendSongs failed: %v", err)
+	}
+
+	if len(recommendSongs) > 0 {
+		log.Printf("First recommended song: %s", recommendSongs[0].Name)
+	}
+
 	// if err != nil {
 	// 	log.Fatalf("Gemini client init failed: %v", err)
 	// }

@@ -12,7 +12,7 @@ type Album struct {
 	Name string `json:"name"`
 }
 
-// 歌曲模型（完整适配网易云 API + Supabase）
+// 歌曲模型 Supabase
 type Songs struct {
 	ID            uint     `gorm:"primaryKey" json:"id"`
 	SongID        int64    `gorm:"column:song_id;unique" json:"song_id"`
@@ -29,6 +29,7 @@ type Songs struct {
 	Embedding     string   `gorm:"column:embedding;type:vector(1536)" json:"-"`
 }
 
+// 网易云歌曲模型
 type NeteaseSongDTO struct {
 	ID   int64  `json:"id"`
 	Name string `json:"name"`
@@ -43,6 +44,8 @@ type NeteaseSongDTO struct {
 		PicUrl string `json:"picUrl"`
 	} `json:"al"`
 }
+
+// 网易云歌词模型
 
 type LLMAnalysisResult struct {
 	Style       []string `json:"style"`
