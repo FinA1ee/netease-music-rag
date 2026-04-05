@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"os"
 )
 
@@ -12,7 +13,6 @@ type Config struct {
 	EmbeddingModel string
 	NeteaseAPIURL  string
 	NeteasePhone   string
-	NeteasePass    string
 	NeteaseAppId   string
 	NeteaseAppKey  string
 }
@@ -26,8 +26,9 @@ func Load() *Config {
 		getEnv("POSTGRES_HOST", "db.zqvjfjrhloemqbdtsqwd.supabase.co") + ":" +
 		getEnv("POSTGRES_PORT", "5432") + "/" +
 		getEnv("POSTGRES_DB", "postgres") +
-		"?sslmode=disable"
+		"?sslmode=require"
 
+	log.Printf("1111: ", dsn)
 	return &Config{
 		Port:           getEnv("PORT", "8080"),
 		PostgresDSN:    dsn,
@@ -35,10 +36,7 @@ func Load() *Config {
 		LLMModel:       getEnv("LLM_MODEL", "gemini-2.5-flash"),
 		EmbeddingModel: getEnv("EMBEDDING_MODEL", "gemini-embedding-001"),
 		NeteaseAPIURL:  getEnv("NETEASE_API_URL", "http://localhost:3000"),
-		NeteasePhone:   getEnv("NETEASE_PHONE", ""),
-		NeteasePass:    getEnv("NETEASE_PASSWORD", ""),
-		NeteaseAppId:   getEnv("NETEASE_APP_ID", ""),
-		NeteaseAppKey:  getEnv("NETEASE_APP_KEY", ""),
+		NeteasePhone:   getEnv("NETEASE_PHONE", "18915974830"),
 	}
 }
 

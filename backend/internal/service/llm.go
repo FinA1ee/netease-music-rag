@@ -8,6 +8,7 @@ import (
 	"regexp"
 
 	"netease-music-rag/backend/internal/model"
+
 	"google.golang.org/genai"
 )
 
@@ -47,7 +48,7 @@ Lyrics:
 	if err != nil {
 		return nil, err
 	}
-	
+
 	text := extractTextFromResult(result)
 	text = cleanJSONWrapper(text)
 
@@ -60,20 +61,20 @@ Lyrics:
 	return &analysis, nil
 }
 
-func (l *LLMClient) GetEmbedding(ctx context.Context, text string) ([]float32, error) {
-	resp, err := l.client.Models.EmbedContent(ctx, l.embeddingModel, &genai.EmbedContentRequest{
-		Contents: []*genai.Content{
-			{Parts: []*genai.Part{{Text: text}}},
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
-	if len(resp.Embeddings) == 0 {
-		return nil, fmt.Errorf("no embeddings returned")
-	}
-	return resp.Embeddings[0].Values, nil
-}
+// func (l *LLMClient) GetEmbedding(ctx context.Context, text string) ([]float32, error) {
+// 	resp, err := l.client.Models.EmbedContent(ctx, l.embeddingModel, &genai.EmbedContentRequest{
+// 		Contents: []*genai.Content{
+// 			{Parts: []*genai.Part{{Text: text}}},
+// 		},
+// 	})
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	if len(resp.Embeddings) == 0 {
+// 		return nil, fmt.Errorf("no embeddings returned")
+// 	}
+// 	return resp.Embeddings[0].Values, nil
+// }
 
 func extractTextFromResult(result *genai.GenerateContentResponse) string {
 	if result != nil && len(result.Candidates) > 0 {
