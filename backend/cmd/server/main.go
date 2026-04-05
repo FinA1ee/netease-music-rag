@@ -82,6 +82,7 @@ func main() {
 			// ✅ 去重：不存在才加入
 			if !existSongID[song.ID] {
 
+				// get song related playlist
 				song.Playlist = model.DetailPlaylistData{
 					ID:              playlistDetail.ID,
 					Name:            playlistDetail.Name,
