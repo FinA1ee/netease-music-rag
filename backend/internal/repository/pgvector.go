@@ -33,8 +33,8 @@ func (r *SongRepo) SaveSong(ctx context.Context, song *model.Songs, embedding []
 			mood = EXCLUDED.mood,
 			description = EXCLUDED.description,
 			embedding = EXCLUDED.embedding::vector;
-	`, song.SongID, song.Name, song.Duration, song.Artists, song.Album, song.AlbumCoverURL,
-		song.SongTag, song.Lyric, song.Style, song.Mood, song.Description, song.Embedding,
+	`, song.SongID, song.Name, song.Duration, song.Artists, song.Album,
+		song.Keywords, song.Lyric, song.Theme, song.Mood, song.Embedding,
 	).Error
 
 	if err != nil {

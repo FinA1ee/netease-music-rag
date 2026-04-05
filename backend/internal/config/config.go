@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"os"
 )
 
@@ -25,8 +26,9 @@ func Load() *Config {
 		getEnv("POSTGRES_HOST", "db.zqvjfjrhloemqbdtsqwd.supabase.co") + ":" +
 		getEnv("POSTGRES_PORT", "5432") + "/" +
 		getEnv("POSTGRES_DB", "postgres") +
-		"?sslmode=disable"
+		"?sslmode=require"
 
+	log.Printf("1111: ", dsn)
 	return &Config{
 		Port:           getEnv("PORT", "8080"),
 		PostgresDSN:    dsn,

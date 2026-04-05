@@ -142,6 +142,7 @@ func (c *NeteaseClient) checkLoginStatus() error {
 	return nil
 }
 
+// 二维码登陆
 func (c *NeteaseClient) Login(phone string) error {
 	// 1. generate qr key
 	_, err := c.generateQrKey()
@@ -175,6 +176,123 @@ func (c *NeteaseClient) Login(phone string) error {
 
 	log.Printf("Login successful!")
 	return nil
+}
+
+// 获取每日推荐歌单
+func (c *NeteaseClient) GetDailyRecommendPlaylist() (*[]model.RecommendPlaylistData, error) {
+	req, err := http.NewRequest("GET", c.baseURL+"/recommend/resource", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if c.auth.cookie != "" {
+		// Some endpoints prefer cookie in header, some in params.
+		// NeteaseCloudMusicApi usually handles both but header is standard.
+		req.Header.Set("Cookie", c.auth.cookie)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API request failed with status: %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Code      int                           `json:"code"`
+		Recommend []model.RecommendPlaylistData `json:"recommend"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	if result.Code != 200 {
+		return nil, fmt.Errorf("API error: code %d", result.Code)
+	}
+
+	return &result.Recommend, nil
+}
+
+func (c *NeteaseClient) GetDetailPlaylist(playlistId int64) (*model.DetailPlaylistData, error) {
+	req, err := http.NewRequest("GET", c.baseURL+"/playlist/detail?id="+fmt.Sprintf("%d", playlistId), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if c.auth.cookie != "" {
+		// Some endpoints prefer cookie in header, some in params.
+		// NeteaseCloudMusicApi usually handles both but header is standard.
+		req.Header.Set("Cookie", c.auth.cookie)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API request failed with status: %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Code     int                      `json:"code"`
+		Playlist model.DetailPlaylistData `json:"playlist"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	if result.Code != 200 {
+		return nil, fmt.Errorf("API error: code %d", result.Code)
+	}
+
+	return &result.Playlist, nil
+}
+
+func (c *NeteaseClient) GetSongLyrics(songId int64) (*string, error) {
+	req, err := http.NewRequest("GET", c.baseURL+"/lyric?id="+fmt.Sprintf("%d", songId), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if c.auth.cookie != "" {
+		// Some endpoints prefer cookie in header, some in params.
+		// NeteaseCloudMusicApi usually handles both but header is standard.
+		req.Header.Set("Cookie", c.auth.cookie)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API request failed with status: %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Code int `json:"code"`
+		LRC  struct {
+			Lyric string `json:"lyric"`
+		} `json:"lrc"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	if result.Code != 200 {
+		return nil, fmt.Errorf("API error: code %d", result.Code)
+	}
+
+	return &result.LRC.Lyric, nil
 }
 
 func (c *NeteaseClient) GetDailyRecommendations() ([]model.NeteaseSongDTO, error) {
@@ -215,23 +333,4 @@ func (c *NeteaseClient) GetDailyRecommendations() ([]model.NeteaseSongDTO, error
 	}
 
 	return result.Data.DailySongs, nil
-}
-
-func (c *NeteaseClient) GetLyric(id int64) (string, error) {
-	url := fmt.Sprintf("%s/lyric?id=%d", c.baseURL, id)
-	resp, err := c.httpClient.Get(url)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	var result struct {
-		Lrc struct {
-			Lyric string `json:"lyric"`
-		} `json:"lrc"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", err
-	}
-	return result.Lrc.Lyric, nil
 }

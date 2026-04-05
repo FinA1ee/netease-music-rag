@@ -8,44 +8,43 @@ type Artist struct {
 
 // 专辑信息（对应网易云 al 字段）
 type Album struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
+	ID     int64  `json:"id"`
+	Name   string `json:"name"`
+	PicUrl string `json:"picUrl"`
+}
+
+// 歌单信息
+type Playlist struct {
+	ID          int64    `json:"id"`
+	Name        string   `json:"name"`
+	CoverImgUrl string   `json:"coverImgUrl"`
+	Description string   `json:"description"`
+	Tags        []string `json:"tags"`    // 曲风描述
+	AlgTags     []string `json:"algTags"` // 算法标签
 }
 
 // 歌曲模型 Supabase
 type Songs struct {
-	ID            uint     `gorm:"primaryKey" json:"id"`
-	SongID        int64    `gorm:"column:song_id;unique" json:"song_id"`
-	Name          string   `gorm:"column:name" json:"name"`
-	Duration      int64    `gorm:"column:duration" json:"duration"`          // 时长 ms
-	Artists       []Artist `gorm:"column:artists;type:jsonb" json:"artists"` // 艺人数组
-	Album         Album    `gorm:"column:album;type:jsonb" json:"album"`     // 专辑对象
-	AlbumCoverURL string   `gorm:"column:album_cover_url" json:"album_cover_url"`
-	SongTag       []string `gorm:"column:song_tag;type:text[]" json:"song_tag"` // 官方标签
-	Lyric         string   `gorm:"column:lyric" json:"lyric"`
-	Style         []string `gorm:"column:style;type:text[]" json:"style"`
-	Mood          []string `gorm:"column:mood;type:text[]" json:"mood"`
-	Description   string   `gorm:"column:description" json:"description"`
-	Embedding     string   `gorm:"column:embedding;type:vector(1536)" json:"-"`
-}
+	ID         uint     `gorm:"primaryKey" json:"id"`
+	SongID     int64    `gorm:"column:song_id;unique" json:"song_id"`
+	Name       string   `gorm:"column:name" json:"name"`
+	Lyric      string   `gorm:"column:lyric" json:"lyric"`
+	Popularity float32  `gorm:"column:popularity" json:"popularity"`
+	Duration   int64    `gorm:"column:duration" json:"duration"`                          // 时长 ms
+	Artists    []Artist `gorm:"column:artists;type:jsonb;serializer:json" json:"artists"` // 👈 加了 serializer
+	Album      Album    `gorm:"column:album;type:jsonb;serializer:json" json:"album"`     // 👈 加了 serializer
 
-// 网易云歌曲模型
-type NeteaseSongDTO struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
-	Dt   int64  `json:"dt"` // duration
-	Ar   []struct {
-		ID   int64  `json:"id"`
-		Name string `json:"name"`
-	} `json:"ar"`
-	Al struct {
-		ID     int64  `json:"id"`
-		Name   string `json:"name"`
-		PicUrl string `json:"picUrl"`
-	} `json:"al"`
-}
+	// Playlist Data 日推歌单数据
+	Playlist Playlist `gorm:"column:playlist;type:jsonb;serializer:json" json:"playlist"`
 
-// 网易云歌词模型
+	// Tags 曲风 & 热度等数据
+	Keywords []string `gorm:"column:keywords;type:text[]" json:"keywords"` // LLM 训练用
+	Mood     []string `gorm:"column:mood;type:text[]" json:"mood"`         // LLM 生成
+	Theme    []string `gorm:"column:theme;type:text[]" json:"theme"`       // LLM 生成
+
+	// ✅ 修复 vector 空值报错
+	Embedding string `gorm:"column:embedding;type:vector(1536);default:null" json:"-"`
+}
 
 type LLMAnalysisResult struct {
 	Style       []string `json:"style"`
