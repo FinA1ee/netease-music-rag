@@ -1,7 +1,6 @@
 package config
 
 import (
-	"log"
 	"os"
 )
 
@@ -28,11 +27,10 @@ func Load() *Config {
 		getEnv("POSTGRES_DB", "postgres") +
 		"?sslmode=require"
 
-	log.Printf("1111: ", dsn)
 	return &Config{
 		Port:           getEnv("PORT", "8080"),
 		PostgresDSN:    dsn,
-		GeminiAPIKey:   getEnv("GEMINI_API_KEY", ""),
+		GeminiAPIKey:   getEnv("GEMINI_API_KEY", "AIzaSyAj5Yla5YcHVyJzzMrxY5OQNbae9WVTsQY"),
 		LLMModel:       getEnv("LLM_MODEL", "gemini-2.5-flash"),
 		EmbeddingModel: getEnv("EMBEDDING_MODEL", "gemini-embedding-001"),
 		NeteaseAPIURL:  getEnv("NETEASE_API_URL", "http://localhost:3000"),

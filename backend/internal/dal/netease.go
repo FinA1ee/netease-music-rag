@@ -40,7 +40,7 @@ func SaveSongsToDB(db *gorm.DB, songList []*model.NeteaseSongDTO) error {
 			CoverImgUrl: dto.Playlist.CoverImgUrl,
 			Description: dto.Playlist.Description,
 			Tags:        dto.Playlist.Tags,
-			AlgTags:     dto.Playlist.AlgTags,
+			// AlgTags:     dto.Playlist.AlgTags,
 		}
 
 		// 3. 构建数据库模型
@@ -53,9 +53,11 @@ func SaveSongsToDB(db *gorm.DB, songList []*model.NeteaseSongDTO) error {
 			Artists:    artists,
 			Album:      album,
 			Playlist:   playlist,
-			Keywords:   []string{},
-			Mood:       []string{},
-			Theme:      []string{},
+			Style:      dto.LlmData.Style,
+			Keywords:   dto.LlmData.Keywords,
+			Mood:       dto.LlmData.Mood,
+			Theme:      dto.LlmData.Theme,
+			Features:   dto.LlmData.Features,
 			// Embedding:     "",
 		}
 

@@ -38,19 +38,22 @@ type Songs struct {
 	Playlist Playlist `gorm:"column:playlist;type:jsonb;serializer:json" json:"playlist"`
 
 	// Tags 曲风 & 热度等数据
-	Keywords []string `gorm:"column:keywords;type:text[]" json:"keywords"` // LLM 训练用
-	Mood     []string `gorm:"column:mood;type:text[]" json:"mood"`         // LLM 生成
-	Theme    []string `gorm:"column:theme;type:text[]" json:"theme"`       // LLM 生成
+	Keywords any `gorm:"column:keywords;type:jsonb;default:null" json:"keywords"` // LLM 训练用
+	Style    any `gorm:"column:style;type:jsonb;default:null" json:"style"`       // LLM 生成
+	Mood     any `gorm:"column:mood;type:jsonb;default:null" json:"mood"`         // LLM 生成
+	Theme    any `gorm:"column:theme;type:jsonb;default:null" json:"theme"`       // LLM 生成
+	Features any `gorm:"column:features;type:jsonb;default:null" json:"features"` // LLM 生成
 
 	// ✅ 修复 vector 空值报错
 	Embedding string `gorm:"column:embedding;type:vector(1536);default:null" json:"-"`
 }
 
 type LLMAnalysisResult struct {
-	Style       []string `json:"style"`
-	Mood        []string `json:"mood"`
-	Scene       []string `json:"scene"`
-	Description string   `json:"description"`
+	Keywords []string       `json:"keywords"` // 歌词关键词
+	Style    []string       `json:"style"`    // 曲风
+	Mood     []string       `json:"mood"`     // 情绪
+	Theme    []string       `json:"theme"`    // 主题
+	Features map[string]any `json:"features"` // 其他特征
 }
 
 type QueryResponse struct {
