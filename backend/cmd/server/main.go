@@ -17,7 +17,7 @@ func main() {
 
 	db := initDB(cfg)
 
-	llmClient, err := service.NewLLMClient(cfg.GeminiAPIKey, cfg.LLMModel)
+	llmClient, err := service.NewLLMClient(cfg.GeminiAPIKey, cfg.LLMModel, cfg.EmbeddingModel)
 	if err != nil {
 		log.Fatalf("Gemini client init failed: %v", err)
 	}

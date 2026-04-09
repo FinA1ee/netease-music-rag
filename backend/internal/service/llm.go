@@ -17,12 +17,12 @@ import (
 )
 
 type LLMClient struct {
-	client   *genai.Client
-	llmModel string
-	// embeddingModel string
+	client         *genai.Client
+	llmModel       string
+	embeddingModel string
 }
 
-func NewLLMClient(apiKey, llmModel string) (*LLMClient, error) {
+func NewLLMClient(apiKey, llmModel, embeddingModel string) (*LLMClient, error) {
 
 	// 1. 配置 Clash 代理
 	proxyURL, err := url.Parse("http://127.0.0.1:7897")
@@ -55,9 +55,9 @@ func NewLLMClient(apiKey, llmModel string) (*LLMClient, error) {
 	}
 
 	return &LLMClient{
-		client:   client,
-		llmModel: llmModel,
-		// embeddingModel: embeddingModel,
+		client:         client,
+		llmModel:       llmModel,
+		embeddingModel: embeddingModel,
 	}, nil
 }
 
@@ -167,46 +167,43 @@ func (l *LLMClient) AnalyzeSong(ctx context.Context, song *model.NeteaseSongDTO,
 	return &analysis, nil
 }
 
-// func (l *LLMClient) GetSongEmbedding(ctx context.Context, song *model.NeteaseSongDTO) ([]float32, error) {
+// GetEmbedding generates a vector embedding for the given text using the configured embedding model.
+// Returns a float32 slice (length depends on model, e.g. 768 for gemini-embedding-001).
+func (l *LLMClient) GetEmbedding(ctx context.Context, text string) ([]float32, error) {
+	if text == "" {
+		return nil, fmt.Errorf("embedding input text is empty")
+	}
+	resp, err := l.client.Models.EmbedContent(ctx, l.embeddingModel, []*genai.Content{
+		{Parts: []*genai.Part{{Text: text}}},
+	}, nil)
+	if err != nil {
+		return nil, fmt.Errorf("EmbedContent failed: %w", err)
+	}
+	if len(resp.Embeddings) == 0 || len(resp.Embeddings[0].Values) == 0 {
+		return nil, fmt.Errorf("no embedding returned")
+	}
+	return resp.Embeddings[0].Values, nil
+}
 
-// 	var text string
-// 	features := json.Unmarshal(song.LlmData.Features, &feat)
-
-//     return fmt.Sprintf(`
-// 歌曲名：%s
-// 歌手：%s
-// 语言：%s
-// 性别：%s
-// 声线：%s
-// 配器：%s
-// 风格：%s
-// 情绪：%s
-// 主题：%s
-// 关键词：%s
-// `,
-//         song.Name,
-//         getArtistNames(song),
-//         feat.Language,
-//         feat.SingerGender,
-//         feat.SingerVoice,
-//         strings.Join(feat.Instruments, ","),
-//         song.Style,
-//         song.Mood,
-//         song.Theme,
-//         song.Keywords,
-//     )
-
-// 	resp, err := l.client.Models.EmbedContent(ctx, l.embeddingModel, []*genai.Content{
-// 		{Parts: []*genai.Part{{Text: text}}},
-// 	}, &genai.EmbedContentConfig{})
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	if len(resp.Embeddings) == 0 {
-// 		return nil, fmt.Errorf("no embeddings returned")
-// 	}
-// 	return resp.Embeddings[0].Values, nil
-// }
+// BuildEmbeddingText formats a Songs record into a plain-text string for embedding.
+// Includes song name, artists, album, and all LLM-generated analysis fields.
+func BuildEmbeddingText(song *model.Songs) string {
+	artistNames := make([]string, 0, len(song.Artists))
+	for _, a := range song.Artists {
+		artistNames = append(artistNames, a.Name)
+	}
+	return fmt.Sprintf(
+		"歌曲：%s\n歌手：%s\n专辑：%s\n关键词：%s\n曲风：%s\n情绪：%s\n主题：%s\n特征：%s",
+		song.Name,
+		strings.Join(artistNames, "、"),
+		song.Album.Name,
+		song.Keywords,
+		song.Style,
+		song.Mood,
+		song.Theme,
+		song.Features,
+	)
+}
 
 func (l *LLMClient) DryRun(ctx context.Context) {
 	resp, err := l.client.Models.GenerateContent(ctx, l.llmModel, genai.Text("你好，测试一下"), nil)

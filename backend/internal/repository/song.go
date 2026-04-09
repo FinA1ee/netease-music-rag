@@ -70,27 +70,27 @@ func (r *SongRepo) SaveSongs(songList []*model.NeteaseSongDTO) error {
 	}).CreateInBatches(batch, 50).Error
 }
 
-// SaveSong upserts a single song with its vector embedding.
-func (r *SongRepo) SaveSong(ctx context.Context, song *model.Songs, embedding []float32) error {
-	song.Embedding = float32SliceToString(embedding)
-	err := r.db.WithContext(ctx).Exec(`
-		INSERT INTO songs (
-			song_id, name, duration, artists, album, album_cover_url,
-			song_tag, lyric, style, mood, description, embedding
-		) VALUES (
-			?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::vector
-		) ON CONFLICT (song_id) DO UPDATE SET
-			lyric = EXCLUDED.lyric,
-			style = EXCLUDED.style,
-			mood = EXCLUDED.mood,
-			description = EXCLUDED.description,
-			embedding = EXCLUDED.embedding::vector;
-	`, song.SongID, song.Name, song.Duration, song.Artists, song.Album,
-		song.Keywords, song.Lyric, song.Theme, song.Mood, song.Embedding,
-	).Error
+// GetSongsNeedingEmbedding returns up to `limit` songs that have LLM analysis
+// but no embedding yet. Used by the embedding backfill job.
+func (r *SongRepo) GetSongsNeedingEmbedding(ctx context.Context, limit int) ([]model.Songs, error) {
+	var songs []model.Songs
+	err := r.db.WithContext(ctx).
+		Where("style IS NOT NULL AND (embedding IS NULL OR embedding = '')").
+		Limit(limit).
+		Find(&songs).Error
+	return songs, err
+}
 
+// UpdateEmbedding writes a vector embedding for the given song_id.
+// Uses a raw Exec because GORM does not natively support the pgvector ::vector cast.
+func (r *SongRepo) UpdateEmbedding(ctx context.Context, songID int64, embedding []float32) error {
+	embStr := float32SliceToString(embedding)
+	err := r.db.WithContext(ctx).Exec(
+		`UPDATE songs SET embedding = ?::vector WHERE song_id = ?`,
+		embStr, songID,
+	).Error
 	if err != nil {
-		log.Printf("Failed to insert/update song %d: %v", song.SongID, err)
+		log.Printf("UpdateEmbedding failed for song %d: %v", songID, err)
 	}
 	return err
 }

@@ -32,18 +32,28 @@ func NewWorkflowService(nc *NeteaseClient, lc *LLMClient, r *repository.SongRepo
 	}
 }
 
-// StartCron schedules RunDailyJob to run every day at 00:05.
+// StartCron schedules:
+//   - RunDailyJob  at 00:05 — fetch playlists, analyse with LLM, persist songs
+//   - RunEmbeddingJob at 01:05 — embed all songs that have analysis but no vector yet
 func (s *WorkflowService) StartCron() {
-	_, err := s.cron.AddFunc("5 0 * * *", func() {
+	if _, err := s.cron.AddFunc("5 0 * * *", func() {
 		if err := s.RunDailyJob(); err != nil {
 			log.Printf("Cron daily job error: %v", err)
 		}
-	})
-	if err != nil {
-		log.Fatalf("Error adding cron job: %v", err)
+	}); err != nil {
+		log.Fatalf("Error adding daily cron job: %v", err)
 	}
+
+	if _, err := s.cron.AddFunc("5 1 * * *", func() {
+		if err := s.RunEmbeddingJob(context.Background()); err != nil {
+			log.Printf("Cron embedding job error: %v", err)
+		}
+	}); err != nil {
+		log.Fatalf("Error adding embedding cron job: %v", err)
+	}
+
 	s.cron.Start()
-	log.Println("Cron job scheduled at 00:05 daily.")
+	log.Println("Cron jobs scheduled: analysis @ 00:05, embedding @ 01:05")
 }
 
 // RunDailyJob fetches recommended playlists, picks one song per playlist,
@@ -144,8 +154,46 @@ func (s *WorkflowService) RunDailyJob() error {
 	return nil
 }
 
+// RunEmbeddingJob loads songs that have LLM analysis but no vector embedding,
+// generates embeddings in batches, and writes them back to the DB.
+// Safe to run repeatedly — already-embedded songs are skipped by the query.
+func (s *WorkflowService) RunEmbeddingJob(ctx context.Context) error {
+	const batchSize = 50
+	log.Println("Starting embedding job...")
+
+	for {
+		songs, err := s.repo.GetSongsNeedingEmbedding(ctx, batchSize)
+		if err != nil {
+			return fmt.Errorf("GetSongsNeedingEmbedding: %w", err)
+		}
+		if len(songs) == 0 {
+			break
+		}
+
+		log.Printf("Embedding batch of %d songs...", len(songs))
+		for i := range songs {
+			song := &songs[i]
+			text := BuildEmbeddingText(song)
+			embedding, err := s.llmClient.GetEmbedding(ctx, text)
+			if err != nil {
+				log.Printf("Song %d (%s): embedding failed: %v", song.SongID, song.Name, err)
+				continue
+			}
+			if err := s.repo.UpdateEmbedding(ctx, song.SongID, embedding); err != nil {
+				log.Printf("Song %d (%s): DB update failed: %v", song.SongID, song.Name, err)
+			}
+		}
+	}
+
+	log.Println("Embedding job finished.")
+	return nil
+}
+
 // Search finds songs semantically similar to the query string.
-// NOTE: requires LLMClient.GetEmbedding to be implemented.
 func (s *WorkflowService) Search(ctx context.Context, query string, limit int) ([]model.Songs, error) {
-	return nil, fmt.Errorf("Search not yet implemented: LLMClient.GetEmbedding is missing")
+	embedding, err := s.llmClient.GetEmbedding(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to embed query: %w", err)
+	}
+	return s.repo.SearchSimilarSongs(ctx, embedding, limit)
 }
