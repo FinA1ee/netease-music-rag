@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand/v2"
+	"time"
 
 	"netease-music-rag/backend/internal/model"
 	"netease-music-rag/backend/internal/repository"
@@ -72,10 +73,18 @@ func (s *WorkflowService) RunDailyJob() error {
 		return fmt.Errorf("failed to fetch daily recommend playlists: %w", err)
 	}
 
+	const (
+		maxPlaylists       = 10 // process at most this many playlists per run
+		maxSongsPerPlaylist = 5  // collect at most this many songs per playlist
+	)
+
 	finalSongList := make([]*model.NeteaseSongDTO, 0)
 	existSongID := make(map[int64]bool)
 
 	for idx, playlist := range *recommendPlaylists {
+		if idx >= maxPlaylists {
+			break
+		}
 		log.Printf("Processing playlist %d/%d (id=%d)", idx+1, len(*recommendPlaylists), playlist.ID)
 
 		playlistDetail, err := s.neteaseClient.GetDetailPlaylist(playlist.ID)
@@ -94,8 +103,29 @@ func (s *WorkflowService) RunDailyJob() error {
 			songs[i], songs[j] = songs[j], songs[i]
 		})
 
+		// Batch-check which songs from this playlist are already in the DB
+		trackIDs := make([]int64, len(songs))
+		for i, s := range songs {
+			trackIDs[i] = s.ID
+		}
+		dbExisting, err := s.repo.GetExistingSongIDs(context.Background(), trackIDs)
+		if err != nil {
+			log.Printf("Failed to check existing songs for playlist %d: %v", playlist.ID, err)
+			dbExisting = map[int64]bool{} // non-fatal: process all songs
+		}
+
+		songsCollected := 0
 		for _, song := range songs {
+			if songsCollected >= maxSongsPerPlaylist {
+				break
+			}
+			// Skip songs already processed in this run
 			if existSongID[song.ID] {
+				continue
+			}
+			// Skip songs already stored in the DB (no need to re-analyse)
+			if dbExisting[song.ID] {
+				log.Printf("Song %d (%s) already in DB, skipping", song.ID, song.Name)
 				continue
 			}
 
@@ -108,9 +138,21 @@ func (s *WorkflowService) RunDailyJob() error {
 				SubscribedCount: playlistDetail.SubscribedCount,
 			}
 
-			lyric, err := s.neteaseClient.GetSongLyrics(song.ID)
-			if err != nil || lyric == nil {
-				log.Printf("Skipping song %d (lyrics error): %v", song.ID, err)
+			const maxLyricRetries = 5
+			var lyric *string
+			for attempt := 1; attempt <= maxLyricRetries; attempt++ {
+				var lErr error
+				lyric, lErr = s.neteaseClient.GetSongLyrics(song.ID)
+				if lErr == nil && lyric != nil {
+					break
+				}
+				log.Printf("Song %d: lyrics fetch attempt %d/%d failed: %v", song.ID, attempt, maxLyricRetries, lErr)
+				if attempt < maxLyricRetries {
+					time.Sleep(3 * time.Second)
+				}
+			}
+			if lyric == nil {
+				log.Printf("Song %d: all lyric retries exhausted, skipping", song.ID)
 				continue
 			}
 			song.Lyric = *lyric
@@ -137,12 +179,12 @@ func (s *WorkflowService) RunDailyJob() error {
 
 			finalSongList = append(finalSongList, &song)
 			existSongID[song.ID] = true
+			songsCollected++
 
-			// One song per playlist
-			break
+			// Rate-limit guard: give the LLM API breathing room between calls
+			log.Printf("Sleeping 20s before next LLM call...")
+			time.Sleep(20 * time.Second)
 		}
-
-		break
 	}
 
 	log.Printf("Collected %d songs, saving to DB...", len(finalSongList))

@@ -70,6 +70,27 @@ func (r *SongRepo) SaveSongs(songList []*model.NeteaseSongDTO) error {
 	}).CreateInBatches(batch, 50).Error
 }
 
+// GetExistingSongIDs returns the subset of the given song IDs that already exist in the DB.
+// Use this to skip duplicate songs before fetching lyrics or running LLM analysis.
+func (r *SongRepo) GetExistingSongIDs(ctx context.Context, ids []int64) (map[int64]bool, error) {
+	if len(ids) == 0 {
+		return map[int64]bool{}, nil
+	}
+	var existing []int64
+	err := r.db.WithContext(ctx).
+		Model(&model.Songs{}).
+		Where("song_id IN ?", ids).
+		Pluck("song_id", &existing).Error
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]bool, len(existing))
+	for _, id := range existing {
+		result[id] = true
+	}
+	return result, nil
+}
+
 // GetSongsNeedingEmbedding returns up to `limit` songs that have LLM analysis
 // but no embedding yet. Used by the embedding backfill job.
 func (r *SongRepo) GetSongsNeedingEmbedding(ctx context.Context, limit int) ([]model.Songs, error) {
@@ -102,11 +123,16 @@ func (r *SongRepo) HasSongLLMAnalyzed(ctx context.Context, id int64) bool {
 	return err == nil && count > 0
 }
 
-// SearchSimilarSongs returns songs ordered by vector similarity to the given embedding.
+// SearchSimilarSongs returns songs ranked by cosine similarity (<=> operator in pgvector)
+// to the given query embedding. Songs without embeddings are excluded.
 func (r *SongRepo) SearchSimilarSongs(ctx context.Context, embedding []float32, limit int) ([]model.Songs, error) {
 	var songs []model.Songs
 	embStr := float32SliceToString(embedding)
-	err := r.db.WithContext(ctx).Order(fmt.Sprintf("embedding <-> '%s'", embStr)).Limit(limit).Find(&songs).Error
+	err := r.db.WithContext(ctx).
+		Where("embedding IS NOT NULL").
+		Order(fmt.Sprintf("embedding <=> '%s'::vector", embStr)).
+		Limit(limit).
+		Find(&songs).Error
 	return songs, err
 }
 

@@ -63,7 +63,6 @@ func NewLLMClient(apiKey, llmModel, embeddingModel string) (*LLMClient, error) {
 
 func (l *LLMClient) AnalyzeSong(ctx context.Context, song *model.NeteaseSongDTO, lyrics string) (*model.LLMAnalysisResult, error) {
 
-
 	var artistNames []string
 	for _, ar := range song.Ar {
 		artistNames = append(artistNames, ar.Name)
@@ -82,30 +81,30 @@ func (l *LLMClient) AnalyzeSong(ctx context.Context, song *model.NeteaseSongDTO,
 3. **所有字段值（value）必须是中文**，包括 keywords，**禁止出现英文 value**。
 4. **所有字段不允许为空**，不知道就合理推断。
 
-## 输出格式（严格复制结构，一字不差）
+## 输出格式
 {
-  "keywords": ["关键词1","关键词2","关键词3","关键词4","关键词5"],
-  "style": ["曲风1","曲风2","曲风3"],
-  "mood": ["情绪1","情绪2","情绪3","情绪4","情绪5"],
-  "theme": ["主题1","主题2","主题3","主题4","主题5"],
+  "keywords": ["关键词1","关键词2","关键词3","关键词4","关键词5"...],
+  "style": ["曲风1","曲风2","曲风3", "曲风4", "曲风5"...],
+  "mood": ["情绪1","情绪2","情绪3","情绪4","情绪5", ...],
+  "theme": ["主题1","主题2","主题3","主题4","主题5", ...],
   "features": {
     "language": ["歌曲语言"],
     "singerNation": ["歌手国籍"],
     "singerGender": ["歌手性别"],
-    "singerVoice": ["歌手声线"],
-    "vocalType": ["演唱方式"],
-    "instruments": ["配器1","配器2"],
+    "singerVoice": ["歌手声线1", "歌手声线2", ...],
+    "vocalType": ["演唱方式1", "演唱方式2", ...],
+    "instruments": ["配器1","配器2", ...],
     "speed": ["速度"],
-    "intensity": ["情绪强度"],
-    "scene": ["适用场景"],
-    "arrangement": ["编曲密度"],
+    "intensity": ["情绪强度", ...],
+    "scene": ["适用场景1", "适用场景2", "适用场景3" ...],
+    "arrangement": ["编曲密度", ...],
     "eraStyle": ["年代风格"],
     "emoColor": "情感色调"
   }
 }
 
 ## 字段范例
-- keywords: 歌词中最具代表性的中文关键词（5个）
+- keywords: 歌词中最具代表性的中文关键词
 - style: 音乐曲风标签，如 流行、民谣、电子、古风、R&B
 - mood: 情绪标签，如 悲伤、温暖、思念、欢快、孤独
 - theme: 歌词主题，如 爱情、离别、成长、自然、城市
@@ -115,12 +114,12 @@ func (l *LLMClient) AnalyzeSong(ctx context.Context, song *model.NeteaseSongDTO,
 - singerVoice: 歌手声线，如 温柔 / 磁性 / 清亮 / 沙哑 / 甜美
 - vocalType: 演唱方式，如 独唱 / 合唱 / 说唱 / 戏腔 / 念白 / 纯音乐
 - instruments: 核心配器，如 钢琴 / 吉他 / 弦乐 / 电子合成器
-- speed: 速度，仅选一项：慢板 / 中速 / 轻快 / 快速
-- intensity: 情绪强度，仅选一项：平静 / 温和 / 强烈 / 炸裂 / 舒缓 / 激昂
+- speed: 速度，如：慢板 / 中速 / 轻快 / 快速
+- intensity: 情绪强度，如：平静 / 温和 / 强烈 / 炸裂 / 舒缓 / 激昂
 - scene: 适用场景，如 睡前 / 通勤 / 运动 / 学习 / 约会
-- arrangement: 编曲密度，仅选一项：极简 / 清淡 / 丰满 / 华丽 / 层次丰富 / 电子感
-- eraStyle: 年代风格，仅选一项：现代 / 复古 / 00年代 / 10年代 / 20年代
-- emoColor: 情感色调，仅一个字符串，选：冷色调 / 暖色调 / 中性色调
+- arrangement: 编曲密度，如 极简 / 清淡 / 丰满 / 华丽 / 层次丰富 / 电子感
+- eraStyle: 年代风格，如：现代 / 复古 / 00年代 / 10年代 / 20年代
+- emoColor: 情感色调，仅一个字符串，如：冷色调 / 暖色调 / 中性色调
 
 ## 强制规则
 - **features 内部所有 key 必须是英文，值必须是中文**
