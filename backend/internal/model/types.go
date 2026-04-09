@@ -46,5 +46,5 @@ type Songs struct {
 	Features any `gorm:"column:features;type:jsonb;default:null" json:"features"` // LLM 生成
 
 	// ✅ 修复 vector 空值报错
-	Embedding string `gorm:"column:embedding;type:vector(1536);default:null" json:"-"`
+	Embedding string `gorm:"column:embedding;type:vector(3072);default:null" json:"-"`
 }

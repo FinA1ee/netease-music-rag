@@ -113,6 +113,7 @@ func (s *WorkflowService) RunDailyJob() error {
 				log.Printf("Skipping song %d (lyrics error): %v", song.ID, err)
 				continue
 			}
+			song.Lyric = *lyric
 
 			llmAnalysis, err := s.llmClient.AnalyzeSong(context.Background(), &song, *lyric)
 			if err != nil || llmAnalysis == nil {

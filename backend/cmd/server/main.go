@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 
 	"netease-music-rag/backend/internal/config"
@@ -32,6 +33,10 @@ func main() {
 
 	if err := workflowSvc.RunDailyJob(); err != nil {
 		log.Fatalf("Daily job failed: %v", err)
+	}
+
+	if err := workflowSvc.RunEmbeddingJob(context.Background()); err != nil {
+		log.Fatalf("Embedding job failed: %v", err)
 	}
 
 	// TODO: uncomment when ready to run as a server

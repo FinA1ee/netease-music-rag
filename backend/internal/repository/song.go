@@ -75,7 +75,7 @@ func (r *SongRepo) SaveSongs(songList []*model.NeteaseSongDTO) error {
 func (r *SongRepo) GetSongsNeedingEmbedding(ctx context.Context, limit int) ([]model.Songs, error) {
 	var songs []model.Songs
 	err := r.db.WithContext(ctx).
-		Where("style IS NOT NULL AND (embedding IS NULL OR embedding = '')").
+		Where("style IS NOT NULL AND (embedding IS NULL)").
 		Limit(limit).
 		Find(&songs).Error
 	return songs, err
