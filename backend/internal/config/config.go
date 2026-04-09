@@ -2,6 +2,8 @@ package config
 
 import (
 	"os"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -17,8 +19,12 @@ type Config struct {
 }
 
 func Load() *Config {
-	// Build standard GORM DSN string to handle passwords with symbols seamlessly
+	// Load .env file if present (no-op when env vars are already set, e.g. in Docker)
+	if err := godotenv.Load(); err != nil {
+		// Not an error — .env is optional in containerised deployments
+	}
 
+	// Build standard GORM DSN string to handle passwords with symbols seamlessly
 	dsn := "postgresql://" +
 		getEnv("POSTGRES_USER", "postgres") + ":" +
 		getEnv("POSTGRES_PASSWORD", "otakufrosT1997") + "@" +
@@ -30,11 +36,11 @@ func Load() *Config {
 	return &Config{
 		Port:           getEnv("PORT", "8080"),
 		PostgresDSN:    dsn,
-		GeminiAPIKey:   getEnv("GEMINI_API_KEY", "AIzaSyAj5Yla5YcHVyJzzMrxY5OQNbae9WVTsQY"),
-		LLMModel:       getEnv("LLM_MODEL", "gemini-2.5-flash"),
-		EmbeddingModel: getEnv("EMBEDDING_MODEL", "gemini-embedding-001"),
-		NeteaseAPIURL:  getEnv("NETEASE_API_URL", "http://localhost:3000"),
-		NeteasePhone:   getEnv("NETEASE_PHONE", "18915974830"),
+		GeminiAPIKey:   getEnv("GEMINI_API_KEY", ""),
+		LLMModel:       getEnv("LLM_MODEL", ""),
+		EmbeddingModel: getEnv("EMBEDDING_MODEL", ""),
+		NeteaseAPIURL:  getEnv("NETEASE_API_URL", ""),
+		NeteasePhone:   getEnv("NETEASE_PHONE", ""),
 	}
 }
 

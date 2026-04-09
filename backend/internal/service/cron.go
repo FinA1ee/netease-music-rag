@@ -1,6 +1,13 @@
 package service
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"math/rand/v2"
+
+	"netease-music-rag/backend/internal/model"
 	"netease-music-rag/backend/internal/repository"
 
 	"github.com/robfig/cron/v3"
@@ -11,115 +18,134 @@ type WorkflowService struct {
 	llmClient     *LLMClient
 	repo          *repository.SongRepo
 	cron          *cron.Cron
+	phone         string
 }
 
-func NewWorkflowService(nc *NeteaseClient, lc *LLMClient, r *repository.SongRepo) *WorkflowService {
-	// Schedule everyday at 00:05
+func NewWorkflowService(nc *NeteaseClient, lc *LLMClient, r *repository.SongRepo, phone string) *WorkflowService {
 	c := cron.New()
 	return &WorkflowService{
 		neteaseClient: nc,
 		llmClient:     lc,
 		repo:          r,
 		cron:          c,
+		phone:         phone,
 	}
 }
 
-// func (s *WorkflowService) StartCron() {
-// 	_, err := s.cron.AddFunc("5 0 * * *", s.RunDailyJob)
-// 	if err != nil {
-// 		log.Fatalf("Error adding cron job: %v", err)
-// 	}
-// 	s.cron.Start()
-// 	log.Println("Cron job scheduled at 00:05 daily.")
-// }
+// StartCron schedules RunDailyJob to run every day at 00:05.
+func (s *WorkflowService) StartCron() {
+	_, err := s.cron.AddFunc("5 0 * * *", func() {
+		if err := s.RunDailyJob(); err != nil {
+			log.Printf("Cron daily job error: %v", err)
+		}
+	})
+	if err != nil {
+		log.Fatalf("Error adding cron job: %v", err)
+	}
+	s.cron.Start()
+	log.Println("Cron job scheduled at 00:05 daily.")
+}
 
-// func (s *WorkflowService) RunDailyJob() {
-// 	log.Println("Starting daily recommendation job...")
-// 	ctx := context.Background()
+// RunDailyJob fetches recommended playlists, picks one song per playlist,
+// enriches each with lyrics and LLM analysis, then persists them to the DB.
+func (s *WorkflowService) RunDailyJob() error {
+	log.Println("Starting daily recommendation job...")
 
-// 	songs, err := s.neteaseClient.GetDailyRecommendations()
-// 	if err != nil {
-// 		log.Printf("Failed to fetch daily recommendations: %v", err)
-// 		return
-// 	}
-// 	log.Printf("Fetched %d daily recommended songs.", len(songs))
+	if s.phone != "" {
+		if err := s.neteaseClient.Login(s.phone); err != nil {
+			log.Printf("Netease login failed (continuing): %v", err)
+		}
+	}
 
-// 	for _, nSong := range songs {
-// 		if s.repo.HasSongLLMAnalyzed(ctx, nSong.ID) {
-// 			log.Printf("Skip song %d: already analyzed.", nSong.ID)
-// 			continue
-// 		}
+	recommendPlaylists, err := s.neteaseClient.GetDailyRecommendPlaylist()
+	if err != nil || recommendPlaylists == nil {
+		return fmt.Errorf("failed to fetch daily recommend playlists: %w", err)
+	}
 
-// 		lyrics, err := s.neteaseClient.GetLyric(nSong.ID)
-// 		if err != nil {
-// 			log.Printf("Failed to get lyric for %d: %v", nSong.ID, err)
-// 			continue
-// 		}
+	finalSongList := make([]*model.NeteaseSongDTO, 0)
+	existSongID := make(map[int64]bool)
 
-// 		// Simplify lyric length if excessively long to save LLM tokens
-// 		lines := strings.Split(lyrics, "\n")
-// 		clearLyrics := ""
-// 		for _, line := range lines {
-// 			idx := strings.Index(line, "]")
-// 			if idx != -1 {
-// 				clearLyrics += line[idx+1:] + " "
-// 			}
-// 		}
-// 		if len(clearLyrics) > 2000 {
-// 			clearLyrics = clearLyrics[:2000]
-// 		}
+	for idx, playlist := range *recommendPlaylists {
+		log.Printf("Processing playlist %d/%d (id=%d)", idx+1, len(*recommendPlaylists), playlist.ID)
 
-// 		artistName := ""
-// 		var artists []model.Artist
-// 		if len(nSong.Ar) > 0 {
-// 			artistName = nSong.Ar[0].Name
-// 			for _, ar := range nSong.Ar {
-// 				artists = append(artists, model.Artist{ID: ar.ID, Name: ar.Name})
-// 			}
-// 		}
+		playlistDetail, err := s.neteaseClient.GetDetailPlaylist(playlist.ID)
+		if err != nil || playlistDetail == nil {
+			log.Printf("Skipping playlist %d: %v", playlist.ID, err)
+			continue
+		}
 
-// 		// Analysis
-// 		analysis, err := s.llmClient.AnalyzeSong(ctx, nSong.Name, artistName, clearLyrics)
-// 		if err != nil {
-// 			log.Printf("LLM analysis failed for %d: %v", nSong.ID, err)
-// 			continue
-// 		}
+		songs := playlistDetail.Tracks
+		if len(songs) == 0 {
+			continue
+		}
 
-// 		// Embedding
-// 		embedStr := fmt.Sprintf("Song: %s. Artist: %s. Description: %s", nSong.Name, artistName, analysis.Description)
-// 		embVec, err := s.llmClient.GetEmbedding(ctx, embedStr)
-// 		if err != nil {
-// 			log.Printf("Embedding failed for %d: %v", nSong.ID, err)
-// 			continue
-// 		}
+		// Shuffle so we don't always pick the first track
+		rand.Shuffle(len(songs), func(i, j int) {
+			songs[i], songs[j] = songs[j], songs[i]
+		})
 
-// 		songData := &model.Songs{
-// 			SongID:        nSong.ID,
-// 			Name:          nSong.Name,
-// 			Duration:      nSong.Dt,
-// 			Artists:       artists,
-// 			Album:         model.Album{ID: nSong.Al.ID, Name: nSong.Al.Name},
-// 			AlbumCoverURL: nSong.Al.PicUrl,
-// 			Lyric:         clearLyrics,
-// 			Description:   analysis.Description,
-// 			Style:         analysis.Style,
-// 			Mood:          analysis.Mood,
-// 		}
+		for _, song := range songs {
+			if existSongID[song.ID] {
+				continue
+			}
 
-// 		err = s.repo.SaveSong(ctx, songData, embVec)
-// 		if err != nil {
-// 			log.Printf("Failed to save song %d: %v", nSong.ID, err)
-// 		} else {
-// 			log.Printf("Successfully analyzed and saved song: %s", nSong.Name)
-// 		}
-// 	}
-// 	log.Println("Daily recommendation job finished.")
-// }
+			song.Playlist = model.Playlist{
+				ID:              playlistDetail.ID,
+				Name:            playlistDetail.Name,
+				CoverImgUrl:     playlistDetail.CoverImgUrl,
+				Description:     playlistDetail.Description,
+				Tags:            playlistDetail.Tags,
+				SubscribedCount: playlistDetail.SubscribedCount,
+			}
 
-// func (s *WorkflowService) Search(ctx context.Context, query string, limit int) ([]model.Song, error) {
-// 	embVec, err := s.llmClient.GetEmbedding(ctx, query)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return s.repo.SearchSimilarSongs(ctx, embVec, limit)
-// }
+			lyric, err := s.neteaseClient.GetSongLyrics(song.ID)
+			if err != nil || lyric == nil {
+				log.Printf("Skipping song %d (lyrics error): %v", song.ID, err)
+				continue
+			}
+
+			llmAnalysis, err := s.llmClient.AnalyzeSong(context.Background(), &song, *lyric)
+			if err != nil || llmAnalysis == nil {
+				log.Printf("Skipping song %d (LLM error): %v", song.ID, err)
+				continue
+			}
+
+			kw, _ := json.Marshal(llmAnalysis.Keywords)
+			st, _ := json.Marshal(llmAnalysis.Style)
+			mo, _ := json.Marshal(llmAnalysis.Mood)
+			th, _ := json.Marshal(llmAnalysis.Theme)
+			fe, _ := json.Marshal(llmAnalysis.Features)
+
+			song.LlmData = &model.NeteaseSongLLMAnalysis{
+				Keywords: string(kw),
+				Style:    string(st),
+				Mood:     string(mo),
+				Theme:    string(th),
+				Features: string(fe),
+			}
+
+			finalSongList = append(finalSongList, &song)
+			existSongID[song.ID] = true
+
+			// One song per playlist
+			break
+		}
+
+		break
+	}
+
+	log.Printf("Collected %d songs, saving to DB...", len(finalSongList))
+
+	if err := s.repo.SaveSongs(finalSongList); err != nil {
+		return err
+	}
+
+	log.Println("Daily recommendation job finished.")
+	return nil
+}
+
+// Search finds songs semantically similar to the query string.
+// NOTE: requires LLMClient.GetEmbedding to be implemented.
+func (s *WorkflowService) Search(ctx context.Context, query string, limit int) ([]model.Songs, error) {
+	return nil, fmt.Errorf("Search not yet implemented: LLMClient.GetEmbedding is missing")
+}

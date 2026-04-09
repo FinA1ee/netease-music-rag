@@ -15,12 +15,13 @@ type Album struct {
 
 // 歌单信息
 type Playlist struct {
-	ID          int64    `json:"id"`
-	Name        string   `json:"name"`
-	CoverImgUrl string   `json:"coverImgUrl"`
-	Description string   `json:"description"`
-	Tags        []string `json:"tags"`    // 曲风描述
-	AlgTags     []string `json:"algTags"` // 算法标签
+	ID              int64    `json:"id"`
+	Name            string   `json:"name"`
+	CoverImgUrl     string   `json:"coverImgUrl"`
+	Description     string   `json:"description"`
+	Tags            []string `json:"tags"`            // 曲风描述
+	AlgTags         []string `json:"algTags"`         // 算法标签
+	SubscribedCount int64    `json:"subscribedCount"` // 订阅人数
 }
 
 // 歌曲模型 Supabase
@@ -46,16 +47,4 @@ type Songs struct {
 
 	// ✅ 修复 vector 空值报错
 	Embedding string `gorm:"column:embedding;type:vector(1536);default:null" json:"-"`
-}
-
-type LLMAnalysisResult struct {
-	Keywords []string       `json:"keywords"` // 歌词关键词
-	Style    []string       `json:"style"`    // 曲风
-	Mood     []string       `json:"mood"`     // 情绪
-	Theme    []string       `json:"theme"`    // 主题
-	Features map[string]any `json:"features"` // 其他特征
-}
-
-type QueryResponse struct {
-	Songs []Songs `json:"songs"`
 }
