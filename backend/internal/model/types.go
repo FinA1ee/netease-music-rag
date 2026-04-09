@@ -15,12 +15,13 @@ type Album struct {
 
 // 歌单信息
 type Playlist struct {
-	ID          int64    `json:"id"`
-	Name        string   `json:"name"`
-	CoverImgUrl string   `json:"coverImgUrl"`
-	Description string   `json:"description"`
-	Tags        []string `json:"tags"`    // 曲风描述
-	AlgTags     []string `json:"algTags"` // 算法标签
+	ID              int64    `json:"id"`
+	Name            string   `json:"name"`
+	CoverImgUrl     string   `json:"coverImgUrl"`
+	Description     string   `json:"description"`
+	Tags            []string `json:"tags"`            // 曲风描述
+	AlgTags         []string `json:"algTags"`         // 算法标签
+	SubscribedCount int64    `json:"subscribedCount"` // 订阅人数
 }
 
 // 歌曲模型 Supabase
@@ -38,21 +39,12 @@ type Songs struct {
 	Playlist Playlist `gorm:"column:playlist;type:jsonb;serializer:json" json:"playlist"`
 
 	// Tags 曲风 & 热度等数据
-	Keywords []string `gorm:"column:keywords;type:text[]" json:"keywords"` // LLM 训练用
-	Mood     []string `gorm:"column:mood;type:text[]" json:"mood"`         // LLM 生成
-	Theme    []string `gorm:"column:theme;type:text[]" json:"theme"`       // LLM 生成
+	Keywords any `gorm:"column:keywords;type:jsonb;default:null" json:"keywords"` // LLM 训练用
+	Style    any `gorm:"column:style;type:jsonb;default:null" json:"style"`       // LLM 生成
+	Mood     any `gorm:"column:mood;type:jsonb;default:null" json:"mood"`         // LLM 生成
+	Theme    any `gorm:"column:theme;type:jsonb;default:null" json:"theme"`       // LLM 生成
+	Features any `gorm:"column:features;type:jsonb;default:null" json:"features"` // LLM 生成
 
 	// ✅ 修复 vector 空值报错
 	Embedding string `gorm:"column:embedding;type:vector(1536);default:null" json:"-"`
-}
-
-type LLMAnalysisResult struct {
-	Style       []string `json:"style"`
-	Mood        []string `json:"mood"`
-	Scene       []string `json:"scene"`
-	Description string   `json:"description"`
-}
-
-type QueryResponse struct {
-	Songs []Songs `json:"songs"`
 }
