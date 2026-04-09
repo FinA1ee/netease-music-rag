@@ -14,6 +14,26 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
+// withRetry calls fn up to maxAttempts times, sleeping delay between failures.
+// It returns the first successful (value, nil-error) pair, or the last error.
+func withRetry[T any](maxAttempts int, delay time.Duration, label string, fn func() (T, error)) (T, error) {
+	var (
+		result T
+		err    error
+	)
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		result, err = fn()
+		if err == nil {
+			return result, nil
+		}
+		log.Printf("%s: attempt %d/%d failed: %v", label, attempt, maxAttempts, err)
+		if attempt < maxAttempts {
+			time.Sleep(delay)
+		}
+	}
+	return result, err
+}
+
 type WorkflowService struct {
 	neteaseClient *NeteaseClient
 	llmClient     *LLMClient
@@ -74,7 +94,7 @@ func (s *WorkflowService) RunDailyJob() error {
 	}
 
 	const (
-		maxPlaylists       = 10 // process at most this many playlists per run
+		maxPlaylists        = 10 // process at most this many playlists per run
 		maxSongsPerPlaylist = 5  // collect at most this many songs per playlist
 	)
 
@@ -87,9 +107,14 @@ func (s *WorkflowService) RunDailyJob() error {
 		}
 		log.Printf("Processing playlist %d/%d (id=%d)", idx+1, len(*recommendPlaylists), playlist.ID)
 
-		playlistDetail, err := s.neteaseClient.GetDetailPlaylist(playlist.ID)
+		playlistDetail, err := withRetry(5, 3*time.Second,
+			fmt.Sprintf("playlist %d detail", playlist.ID),
+			func() (*model.DetailPlaylistData, error) {
+				return s.neteaseClient.GetDetailPlaylist(playlist.ID)
+			},
+		)
 		if err != nil || playlistDetail == nil {
-			log.Printf("Skipping playlist %d: %v", playlist.ID, err)
+			log.Printf("Skipping playlist %d after retries: %v", playlist.ID, err)
 			continue
 		}
 
@@ -138,20 +163,13 @@ func (s *WorkflowService) RunDailyJob() error {
 				SubscribedCount: playlistDetail.SubscribedCount,
 			}
 
-			const maxLyricRetries = 5
-			var lyric *string
-			for attempt := 1; attempt <= maxLyricRetries; attempt++ {
-				var lErr error
-				lyric, lErr = s.neteaseClient.GetSongLyrics(song.ID)
-				if lErr == nil && lyric != nil {
-					break
-				}
-				log.Printf("Song %d: lyrics fetch attempt %d/%d failed: %v", song.ID, attempt, maxLyricRetries, lErr)
-				if attempt < maxLyricRetries {
-					time.Sleep(3 * time.Second)
-				}
-			}
-			if lyric == nil {
+			lyric, lErr := withRetry(5, 3*time.Second,
+				fmt.Sprintf("song %d lyrics", song.ID),
+				func() (*string, error) {
+					return s.neteaseClient.GetSongLyrics(song.ID)
+				},
+			)
+			if lErr != nil || lyric == nil {
 				log.Printf("Song %d: all lyric retries exhausted, skipping", song.ID)
 				continue
 			}
@@ -182,8 +200,8 @@ func (s *WorkflowService) RunDailyJob() error {
 			songsCollected++
 
 			// Rate-limit guard: give the LLM API breathing room between calls
-			log.Printf("Sleeping 20s before next LLM call...")
-			time.Sleep(20 * time.Second)
+			log.Printf("Sleeping 10s before next LLM call...")
+			time.Sleep(10 * time.Second)
 		}
 	}
 

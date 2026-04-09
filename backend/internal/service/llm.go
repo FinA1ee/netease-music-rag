@@ -81,7 +81,7 @@ func (l *LLMClient) AnalyzeSong(ctx context.Context, song *model.NeteaseSongDTO,
 3. **所有字段值（value）必须是中文**，包括 keywords，**禁止出现英文 value**。
 4. **所有字段不允许为空**，不知道就合理推断。
 
-## 输出格式
+## 输出格式（3-5个style,mood,theme;只选择最突出最有区分度的特点）
 {
   "keywords": ["关键词1","关键词2","关键词3","关键词4","关键词5"...],
   "style": ["曲风1","曲风2","曲风3", "曲风4", "曲风5"...],
