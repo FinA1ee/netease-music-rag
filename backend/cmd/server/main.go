@@ -2,12 +2,16 @@ package main
 
 import (
 	"log"
+	"net/http"
 
 	"netease-music-rag/backend/internal/config"
+	"netease-music-rag/backend/internal/handler"
 	"netease-music-rag/backend/internal/model"
 	"netease-music-rag/backend/internal/repository"
 	"netease-music-rag/backend/internal/service"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -17,7 +21,7 @@ func main() {
 
 	db := initDB(cfg)
 
-	llmClient, err := service.NewLLMClient(cfg.GeminiAPIKey, cfg.LLMModel)
+	llmClient, err := service.NewLLMClient(cfg.GeminiAPIKey, cfg.LLMModel, cfg.EmbeddingModel)
 	if err != nil {
 		log.Fatalf("Gemini client init failed: %v", err)
 	}
@@ -28,27 +32,23 @@ func main() {
 	}
 
 	repo := repository.NewSongRepo(db)
-	workflowSvc := service.NewWorkflowService(neteaseClient, llmClient, repo, cfg.NeteasePhone)
+	eventBus := service.NewEventBus()
+	workflowSvc := service.NewWorkflowService(neteaseClient, llmClient, repo, cfg.NeteasePhone, eventBus)
+	searchSvc := service.NewSearchService(llmClient, repo)
 
-	if err := workflowSvc.RunDailyJob(); err != nil {
-		log.Fatalf("Daily job failed: %v", err)
-	}
-
-	// TODO: uncomment when ready to run as a server
 	// workflowSvc.StartCron()
-	// r := chi.NewRouter()
-	// r.Use(middleware.Logger)
-	// r.Use(cors.Handler(cors.Options{
-	// 	AllowedOrigins: []string{"http://localhost:3000", "http://localhost:8080", "*"},
-	// 	AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-	// 	AllowedHeaders: []string{"Accept", "Content-Type", "X-CSRF-Token"},
-	// }))
-	// apiHandler := handler.NewAPIHandler(workflowSvc)
-	// apiHandler.RegisterRoutes(r)
-	// log.Printf("Server starting on port %s...", cfg.Port)
-	// if err := http.ListenAndServe(":"+cfg.Port, r); err != nil {
-	// 	log.Fatalf("Server stopped: %v", err)
-	// }
+
+	r := chi.NewRouter()
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+
+	apiHandler := handler.NewAPIHandler(workflowSvc, searchSvc, neteaseClient, eventBus)
+	apiHandler.RegisterRoutes(r)
+
+	log.Printf("Server starting on :%s", cfg.Port)
+	if err := http.ListenAndServe(":"+cfg.Port, r); err != nil {
+		log.Fatalf("Server stopped: %v", err)
+	}
 }
 
 func initDB(cfg *config.Config) *gorm.DB {

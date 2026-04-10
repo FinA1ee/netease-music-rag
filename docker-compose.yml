@@ -1,7 +1,9 @@
+
 services:
+  # ── PostgreSQL with pgvector ─────────────────────────────────────────────────
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: netease-music-rag-postgres
+    container_name: netease-postgres
     restart: unless-stopped
     ports:
       - "5432:5432"
@@ -12,13 +14,59 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
+  # ── Netease Cloud Music API (Enhanced) ───────────────────────────────────────
+  # No official Docker image exists for the enhanced fork — run it via npx
+  # inside a lightweight Node container (same as `npx @neteasecloudmusicapienhanced/api@latest`).
   netease-api:
-    image: binaryify/netease_cloud_music_api:latest
-    container_name: netease-music-rag-api
+    image: node:lts-alpine
+    container_name: netease-api
     restart: unless-stopped
     ports:
       - "3000:3000"
+    command: >
+      sh -c "npx --yes @neteasecloudmusicapienhanced/api@latest"
+    environment:
+      PORT: "3000"
+
+  # ── Go backend ───────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: netease-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      netease-api:
+        condition: service_started
+    environment:
+      PORT: "8080"
+
+      # PostgreSQL — points to the postgres service above
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_SSLMODE: disable
+
+      # Netease API — points to the netease-api service above
+      NETEASE_API_URL: http://netease-api:3000
+      NETEASE_PHONE: ${NETEASE_PHONE:-}
+
+      # Gemini AI — must be supplied via .env or shell environment
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-gemini-2.0-flash-lite}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-gemini-embedding-001}
 
 volumes:
   postgres_data:

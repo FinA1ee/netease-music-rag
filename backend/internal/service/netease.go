@@ -94,7 +94,8 @@ func (c *NeteaseClient) createQrCode() (string, error) {
 
 	var result struct {
 		Data struct {
-			Qrurl string `json:"qrurl"`
+			Qrimg string `json:"qrimg"` // base64 PNG data URL, returned when qrimg=true
+			Qrurl string `json:"qrurl"` // login URL (kept for reference)
 		} `json:"data"`
 	}
 
@@ -102,9 +103,25 @@ func (c *NeteaseClient) createQrCode() (string, error) {
 		return "", err
 	}
 
-	log.Printf("QR Code URL generated: %s", result.Data.Qrurl)
-	c.auth.qrCodeImgStr = result.Data.Qrurl
-	return result.Data.Qrurl, nil
+	if result.Data.Qrimg == "" {
+		return "", fmt.Errorf("qrimg field missing from API response")
+	}
+
+	c.auth.qrCodeImgStr = result.Data.Qrimg
+	return result.Data.Qrimg, nil
+}
+
+// GenerateLoginQR creates a fresh QR key + code and returns (base64PngDataURL, key, error).
+func (c *NeteaseClient) GenerateLoginQR() (string, string, error) {
+	key, err := c.generateQrKey()
+	if err != nil {
+		return "", "", fmt.Errorf("generateQrKey: %w", err)
+	}
+	imgDataURL, err := c.createQrCode()
+	if err != nil {
+		return "", "", fmt.Errorf("createQrCode: %w", err)
+	}
+	return imgDataURL, key, nil
 }
 
 func (c *NeteaseClient) checkLoginStatus() error {
@@ -141,6 +158,19 @@ func (c *NeteaseClient) checkLoginStatus() error {
 	}
 
 	return nil
+}
+
+// CheckLoginStatus polls the QR scan status for a given key.
+// Returns (statusCode, message, error). Status codes: 800=expired, 801=waiting, 802=scanned, 803=success.
+func (c *NeteaseClient) CheckLoginStatus(key string) (int, string, error) {
+	prev := c.auth.qrCodeKey
+	c.auth.qrCodeKey = key
+	err := c.checkLoginStatus()
+	c.auth.qrCodeKey = prev
+	if err != nil {
+		return 0, "", err
+	}
+	return c.auth.qrCodeStatus, c.auth.qrCodeMessage, nil
 }
 
 // 二维码登陆
