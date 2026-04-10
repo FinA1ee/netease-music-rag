@@ -7,7 +7,7 @@ ENV GOTOOLCHAIN=auto
 WORKDIR /app
 
 # Cache dependency downloads separately from source changes
-COPY go.mod go.sum ./
+COPY go.mod ./
 RUN go mod download
 
 COPY . .
