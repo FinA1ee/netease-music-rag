@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -23,27 +24,23 @@ type LLMClient struct {
 }
 
 func NewLLMClient(apiKey, llmModel, embeddingModel string) (*LLMClient, error) {
-
-	// 1. 配置 Clash 代理
-	proxyURL, err := url.Parse("http://127.0.0.1:7897")
-	if err != nil {
-		panic(err)
-	}
-
-	// 2. 创建带代理的 HTTP Client
-	hc := &http.Client{
-		Timeout: 60 * time.Second,
-	}
-
-	// 2. 设置代理（你的 Clash 端口 7897）
-	if proxyURL != nil {
-		proxy, err := url.Parse(proxyURL.String())
+	// Respect GEMINI_PROXY env var if set (e.g. http://host.docker.internal:7897 for Clash on the host).
+	// Falls back to the standard HTTPS_PROXY / HTTP_PROXY env vars, then no proxy.
+	transport := &http.Transport{}
+	if proxyAddr := os.Getenv("GEMINI_PROXY"); proxyAddr != "" {
+		proxyURL, err := url.Parse(proxyAddr)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("invalid GEMINI_PROXY value %q: %w", proxyAddr, err)
 		}
-		hc.Transport = &http.Transport{
-			Proxy: http.ProxyURL(proxy),
-		}
+		transport.Proxy = http.ProxyURL(proxyURL)
+	} else {
+		// Use system proxy env vars (HTTPS_PROXY, HTTP_PROXY, NO_PROXY) if set
+		transport.Proxy = http.ProxyFromEnvironment
+	}
+
+	hc := &http.Client{
+		Timeout:   60 * time.Second,
+		Transport: transport,
 	}
 
 	client, err := genai.NewClient(context.Background(), &genai.ClientConfig{

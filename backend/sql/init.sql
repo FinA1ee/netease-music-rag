@@ -1,27 +1,28 @@
--- Enable pgvector extension
+-- Enable extensions
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- Songs table with embedding vector
+-- Songs table — matches the GORM Songs struct in internal/model/types.go
 CREATE TABLE IF NOT EXISTS songs (
-    id            BIGINT PRIMARY KEY,          -- NetEase song ID
-    name          TEXT    NOT NULL,
-    artist        TEXT    NOT NULL,
-    album         TEXT    NOT NULL DEFAULT '',
-    cover_url     TEXT    NOT NULL DEFAULT '',
-    lyrics        TEXT    NOT NULL DEFAULT '',
-    description   TEXT    NOT NULL DEFAULT '', -- LLM generated style/mood/scene text
-    embedding     vector(768),                 -- gemini-embedding-001 dimension
-    style_tags    TEXT[]  NOT NULL DEFAULT '{}',
-    mood_tags     TEXT[]  NOT NULL DEFAULT '{}',
-    scene_tags    TEXT[]  NOT NULL DEFAULT '{}',
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id          BIGSERIAL   PRIMARY KEY,
+    song_id     BIGINT      NOT NULL UNIQUE,
+    name        TEXT        NOT NULL DEFAULT '',
+    lyric       TEXT        NOT NULL DEFAULT '',
+    popularity  REAL        NOT NULL DEFAULT 0,
+    duration    BIGINT      NOT NULL DEFAULT 0,
+    artists     JSONB       NOT NULL DEFAULT '[]',
+    album       JSONB       NOT NULL DEFAULT '{}',
+    playlist    JSONB       NOT NULL DEFAULT '{}',
+    keywords    JSONB,
+    style       JSONB,
+    mood        JSONB,
+    theme       JSONB,
+    features    JSONB,
+    embedding   vector(3072)         -- gemini-embedding-001 dimension
 );
 
--- Index for vector similarity search (cosine distance)
+-- Index for fast vector similarity search (cosine distance)
 CREATE INDEX IF NOT EXISTS songs_embedding_idx
     ON songs USING ivfflat (embedding vector_cosine_ops)
     WITH (lists = 100);
 
--- Index on created_at for listing
-CREATE INDEX IF NOT EXISTS songs_created_at_idx ON songs (created_at DESC);
+CREATE INDEX IF NOT EXISTS songs_song_id_idx ON songs (song_id);

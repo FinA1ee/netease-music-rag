@@ -63,10 +63,28 @@ services:
       NETEASE_API_URL: http://netease-api:3000
       NETEASE_PHONE: ${NETEASE_PHONE:-}
 
+      # Gemini proxy — Clash runs on the Mac host; from Docker, use host.docker.internal
+      GEMINI_PROXY: http://host.docker.internal:7897
+
       # Gemini AI — must be supplied via .env or shell environment
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       LLM_MODEL: ${LLM_MODEL:-gemini-2.0-flash-lite}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-gemini-embedding-001}
+
+  # ── Frontend (React → nginx) ─────────────────────────────────────────────────
+  # Builds the React app with webpack, serves static files + proxies /api via nginx.
+  # Access the app at http://localhost (port 80).
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: netease-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_started
 
 volumes:
   postgres_data:
