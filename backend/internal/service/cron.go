@@ -40,9 +40,10 @@ type WorkflowService struct {
 	repo          *repository.SongRepo
 	cron          *cron.Cron
 	phone         string
+	bus           *EventBus
 }
 
-func NewWorkflowService(nc *NeteaseClient, lc *LLMClient, r *repository.SongRepo, phone string) *WorkflowService {
+func NewWorkflowService(nc *NeteaseClient, lc *LLMClient, r *repository.SongRepo, phone string, bus *EventBus) *WorkflowService {
 	c := cron.New()
 	return &WorkflowService{
 		neteaseClient: nc,
@@ -50,6 +51,7 @@ func NewWorkflowService(nc *NeteaseClient, lc *LLMClient, r *repository.SongRepo
 		repo:          r,
 		cron:          c,
 		phone:         phone,
+		bus:           bus,
 	}
 }
 
@@ -81,6 +83,7 @@ func (s *WorkflowService) StartCron() {
 // enriches each with lyrics and LLM analysis, then persists them to the DB.
 func (s *WorkflowService) RunDailyJob() error {
 	log.Println("Starting daily recommendation job...")
+	s.bus.emit(EvJobStarted, map[string]any{"message": "Daily recommendation job started"})
 
 	if s.phone != "" {
 		if err := s.neteaseClient.Login(s.phone); err != nil {
@@ -117,6 +120,15 @@ func (s *WorkflowService) RunDailyJob() error {
 			log.Printf("Skipping playlist %d after retries: %v", playlist.ID, err)
 			continue
 		}
+
+		s.bus.emit(EvPlaylistProcessing, map[string]any{
+			"id":          playlistDetail.ID,
+			"name":        playlistDetail.Name,
+			"trackCount":  len(playlistDetail.Tracks),
+			"coverImgUrl": playlistDetail.CoverImgUrl,
+			"index":       idx + 1,
+			"total":       min(len(*recommendPlaylists), 10),
+		})
 
 		songs := playlistDetail.Tracks
 		if len(songs) == 0 {
@@ -171,6 +183,11 @@ func (s *WorkflowService) RunDailyJob() error {
 			)
 			if lErr != nil || lyric == nil {
 				log.Printf("Song %d: all lyric retries exhausted, skipping", song.ID)
+				s.bus.emit(EvSongSkipped, map[string]any{
+					"songId": song.ID,
+					"name":   song.Name,
+					"reason": "lyrics unavailable",
+				})
 				continue
 			}
 			song.Lyric = *lyric
@@ -178,6 +195,11 @@ func (s *WorkflowService) RunDailyJob() error {
 			llmAnalysis, err := s.llmClient.AnalyzeSong(context.Background(), &song, *lyric)
 			if err != nil || llmAnalysis == nil {
 				log.Printf("Skipping song %d (LLM error): %v", song.ID, err)
+				s.bus.emit(EvSongSkipped, map[string]any{
+					"songId": song.ID,
+					"name":   song.Name,
+					"reason": "LLM analysis failed",
+				})
 				continue
 			}
 
@@ -199,6 +221,18 @@ func (s *WorkflowService) RunDailyJob() error {
 			existSongID[song.ID] = true
 			songsCollected++
 
+			artistNames := make([]string, 0, len(song.Ar))
+			for _, a := range song.Ar {
+				artistNames = append(artistNames, a.Name)
+			}
+			s.bus.emit(EvSongAnalysed, map[string]any{
+				"songId":  song.ID,
+				"name":    song.Name,
+				"artists": artistNames,
+				"style":   llmAnalysis.Style,
+				"mood":    llmAnalysis.Mood,
+			})
+
 			// Rate-limit guard: give the LLM API breathing room between calls
 			log.Printf("Sleeping 10s before next LLM call...")
 			time.Sleep(10 * time.Second)
@@ -212,6 +246,18 @@ func (s *WorkflowService) RunDailyJob() error {
 	}
 
 	log.Println("Daily recommendation job finished.")
+	s.bus.emit(EvJobCompleted, map[string]any{
+		"jobType": "daily",
+		"saved":   len(finalSongList),
+		"message": fmt.Sprintf("Daily job complete — %d songs saved", len(finalSongList)),
+	})
+
+	// Run embedding strictly after the fetch+analyse phase — same goroutine, sequential.
+	log.Println("Starting embedding job after daily job completion...")
+	if err := s.RunEmbeddingJob(context.Background()); err != nil {
+		log.Printf("Embedding job error: %v", err)
+	}
+
 	return nil
 }
 
@@ -221,6 +267,8 @@ func (s *WorkflowService) RunDailyJob() error {
 func (s *WorkflowService) RunEmbeddingJob(ctx context.Context) error {
 	const batchSize = 50
 	log.Println("Starting embedding job...")
+	s.bus.emit(EvEmbeddingStarted, map[string]any{"message": "Embedding backfill job started"})
+	totalEmbedded := 0
 
 	for {
 		songs, err := s.repo.GetSongsNeedingEmbedding(ctx, batchSize)
@@ -242,11 +290,19 @@ func (s *WorkflowService) RunEmbeddingJob(ctx context.Context) error {
 			}
 			if err := s.repo.UpdateEmbedding(ctx, song.SongID, embedding); err != nil {
 				log.Printf("Song %d (%s): DB update failed: %v", song.SongID, song.Name, err)
+			} else {
+				totalEmbedded++
 			}
 		}
 	}
 
+
 	log.Println("Embedding job finished.")
+	s.bus.emit(EvEmbeddingDone, map[string]any{
+		"jobType": "embedding",
+		"total":   totalEmbedded,
+		"message": fmt.Sprintf("Embedding complete — %d songs embedded", totalEmbedded),
+	})
 	return nil
 }
 

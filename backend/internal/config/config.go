@@ -14,8 +14,6 @@ type Config struct {
 	EmbeddingModel string
 	NeteaseAPIURL  string
 	NeteasePhone   string
-	NeteaseAppId   string
-	NeteaseAppKey  string
 }
 
 func Load() *Config {
@@ -24,14 +22,15 @@ func Load() *Config {
 		// Not an error — .env is optional in containerised deployments
 	}
 
+	sslmode := getEnv("POSTGRES_SSLMODE", "disable")
 	// Build standard GORM DSN string to handle passwords with symbols seamlessly
 	dsn := "postgresql://" +
 		getEnv("POSTGRES_USER", "postgres") + ":" +
-		getEnv("POSTGRES_PASSWORD", "otakufrosT1997") + "@" +
-		getEnv("POSTGRES_HOST", "db.zqvjfjrhloemqbdtsqwd.supabase.co") + ":" +
+		getEnv("POSTGRES_PASSWORD", "postgres") + "@" +
+		getEnv("POSTGRES_HOST", "postgres") + ":" +
 		getEnv("POSTGRES_PORT", "5432") + "/" +
 		getEnv("POSTGRES_DB", "postgres") +
-		"?sslmode=require"
+		"?sslmode=" + sslmode
 
 	return &Config{
 		Port:           getEnv("PORT", "8080"),
@@ -39,8 +38,9 @@ func Load() *Config {
 		GeminiAPIKey:   getEnv("GEMINI_API_KEY", ""),
 		LLMModel:       getEnv("LLM_MODEL", ""),
 		EmbeddingModel: getEnv("EMBEDDING_MODEL", ""),
-		NeteaseAPIURL:  getEnv("NETEASE_API_URL", ""),
-		NeteasePhone:   getEnv("NETEASE_PHONE", ""),
+		// Default to the Docker Compose service name; override to http://localhost:3000 locally
+		NeteaseAPIURL: getEnv("NETEASE_API_URL", "http://netease-api:3000"),
+		NeteasePhone:  getEnv("NETEASE_PHONE", ""),
 	}
 }
 

@@ -32,7 +32,8 @@ func main() {
 	}
 
 	repo := repository.NewSongRepo(db)
-	workflowSvc := service.NewWorkflowService(neteaseClient, llmClient, repo, cfg.NeteasePhone)
+	eventBus := service.NewEventBus()
+	workflowSvc := service.NewWorkflowService(neteaseClient, llmClient, repo, cfg.NeteasePhone, eventBus)
 	searchSvc := service.NewSearchService(llmClient, repo)
 
 	// workflowSvc.StartCron()
@@ -41,7 +42,7 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	apiHandler := handler.NewAPIHandler(workflowSvc, searchSvc)
+	apiHandler := handler.NewAPIHandler(workflowSvc, searchSvc, neteaseClient, eventBus)
 	apiHandler.RegisterRoutes(r)
 
 	log.Printf("Server starting on :%s", cfg.Port)
