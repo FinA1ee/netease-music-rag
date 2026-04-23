@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Tag, Typography, Space, Avatar, Tooltip } from 'antd';
+import { Card, Tag, Typography, Space, Avatar } from 'antd';
 import { UserOutlined, SoundOutlined } from '@ant-design/icons';
 import { SongResult } from '../api';
 
@@ -11,15 +11,23 @@ const MOOD_COLORS = ['#b45309', '#15803d', '#be185d', '#6d28d9'];
 interface Props {
   song: SongResult;
   rank: number;
+  query: string;
 }
 
-const SongCard: React.FC<Props> = ({ song, rank }) => {
+const SongCard: React.FC<Props> = ({ song, rank, query }) => {
   const artists = song.artists?.map(a => a.name).join('、') ?? '—';
   const albumName = song.album?.name ?? '—';
   const coverUrl = song.album?.picUrl;
   const styles: string[] = Array.isArray(song.style) ? song.style : [];
   const moods: string[] = Array.isArray(song.mood) ? song.mood : [];
   const keywords: string[] = Array.isArray(song.keywords) ? song.keywords : [];
+  const normalizedQuery = query.trim().toLowerCase();
+  const matchedKeywords = keywords.filter((k) => {
+    const normalizedKeyword = k.trim().toLowerCase();
+    return normalizedKeyword.length > 0 && (
+      normalizedQuery.includes(normalizedKeyword) || normalizedKeyword.includes(normalizedQuery)
+    );
+  });
 
   return (
     <Card
@@ -111,6 +119,20 @@ const SongCard: React.FC<Props> = ({ song, rank }) => {
                   #{k}
                 </Tag>
               ))}
+            </div>
+          )}
+
+          {matchedKeywords.length > 0 && (
+            <div style={{
+              marginTop: 10,
+              padding: '8px 10px',
+              borderRadius: 8,
+              background: 'rgba(99,102,241,0.12)',
+              border: '1px solid rgba(99,102,241,0.32)',
+            }}>
+              <Text style={{ color: '#c4b5fd', fontSize: 12 }}>
+                推荐理由：关键词匹配 {matchedKeywords.slice(0, 3).join(' / ')}
+              </Text>
             </div>
           )}
         </div>

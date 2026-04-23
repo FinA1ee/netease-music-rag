@@ -27,15 +27,19 @@ func Load() *Config {
 		// Not an error — .env is optional in containerised deployments
 	}
 
-	sslmode := getEnv("POSTGRES_SSLMODE", "disable")
-	// Build standard GORM DSN string to handle passwords with symbols seamlessly
-	dsn := "postgresql://" +
-		getEnv("POSTGRES_USER", "postgres") + ":" +
-		getEnv("POSTGRES_PASSWORD", "postgres") + "@" +
-		getEnv("POSTGRES_HOST", "postgres") + ":" +
-		getEnv("POSTGRES_PORT", "5432") + "/" +
-		getEnv("POSTGRES_DB", "postgres") +
-		"?sslmode=" + sslmode
+	dsn := getEnv("POSTGRES_DSN", "")
+	if dsn == "" {
+		sslmode := getEnv("POSTGRES_SSLMODE", "disable")
+		// Build standard GORM DSN string to handle passwords with symbols seamlessly.
+		// Used when POSTGRES_DSN is not explicitly provided.
+		dsn = "postgresql://" +
+			getEnv("POSTGRES_USER", "postgres") + ":" +
+			getEnv("POSTGRES_PASSWORD", "postgres") + "@" +
+			getEnv("POSTGRES_HOST", "postgres") + ":" +
+			getEnv("POSTGRES_PORT", "5432") + "/" +
+			getEnv("POSTGRES_DB", "postgres") +
+			"?sslmode=" + sslmode
+	}
 
 	return &Config{
 		Port:           getEnv("PORT", "8080"),

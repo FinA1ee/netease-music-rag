@@ -18,6 +18,20 @@ const { Header, Content } = Layout;
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
+function getMatchedKeywords(query: string, keywords: string[] | null | undefined): string[] {
+  if (!Array.isArray(keywords) || keywords.length === 0) return [];
+
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return [];
+
+  return keywords.filter((k) => {
+    const normalizedKeyword = k.trim().toLowerCase();
+    return normalizedKeyword.length > 0 && (
+      normalizedQuery.includes(normalizedKeyword) || normalizedKeyword.includes(normalizedQuery)
+    );
+  });
+}
+
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [query, setQuery] = useState('');
@@ -77,9 +91,28 @@ const App: React.FC = () => {
     setResults([]);
     try {
       const data = await searchSongs(query, limit);
-      setResults(data.results ?? []);
-      if ((data.results ?? []).length === 0) {
+      const nextResults = data.results ?? [];
+      setResults(nextResults);
+
+      if (nextResults.length === 0) {
         api.info({ message: 'No results', description: 'Try a different description.' });
+      } else {
+        const reasonLines = nextResults
+          .map((song) => {
+            const matched = getMatchedKeywords(query, song.keywords);
+            if (matched.length === 0) return null;
+            return `${song.name}: ${matched.slice(0, 2).join(' / ')}`;
+          })
+          .filter((line): line is string => Boolean(line));
+
+        if (reasonLines.length > 0) {
+          api.open({
+            type: 'info',
+            message: 'Recommendation Reasons',
+            description: reasonLines.slice(0, 3).join(' | '),
+            duration: 6,
+          });
+        }
       }
     } catch (err: any) {
       api.error({ message: 'Search failed', description: err.message });
@@ -101,19 +134,19 @@ const App: React.FC = () => {
     }
   };
 
-  // ── Login screen ────────────────────────────────────────────────────────────
-  if (!isLoggedIn) {
-    return (
-      <ConfigProvider theme={{ algorithm: theme.darkAlgorithm, token: { colorPrimary: '#7c3aed' } }}>
-        {contextHolder}
-        <div className="app-bg">
-          <div className="login-center">
-            <LoginPanel onLoginSuccess={() => setIsLoggedIn(true)} />
-          </div>
-        </div>
-      </ConfigProvider>
-    );
-  }
+  // // ── Login screen ────────────────────────────────────────────────────────────
+  // if (!isLoggedIn) {
+  //   return (
+  //     <ConfigProvider theme={{ algorithm: theme.darkAlgorithm, token: { colorPrimary: '#7c3aed' } }}>
+  //       {contextHolder}
+  //       <div className="app-bg">
+  //         <div className="login-center">
+  //           <LoginPanel onLoginSuccess={() => setIsLoggedIn(true)} />
+  //         </div>
+  //       </div>
+  //     </ConfigProvider>
+  //   );
+  // }
 
   // ── Main app ────────────────────────────────────────────────────────────────
   return (
@@ -244,7 +277,7 @@ const App: React.FC = () => {
                 </div>
                 <Space direction="vertical" style={{ width: '100%' }} size={12}>
                   {results.map((song, idx) => (
-                    <SongCard key={song.song_id} song={song} rank={idx + 1} />
+                    <SongCard key={song.song_id} song={song} rank={idx + 1} query={query} />
                   ))}
                 </Space>
               </>
