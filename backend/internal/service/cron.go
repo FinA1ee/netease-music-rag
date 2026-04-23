@@ -85,11 +85,11 @@ func (s *WorkflowService) RunDailyJob() error {
 	log.Println("Starting daily recommendation job...")
 	s.bus.emit(EvJobStarted, map[string]any{"message": "Daily recommendation job started"})
 
-	if s.phone != "" {
-		if err := s.neteaseClient.Login(s.phone); err != nil {
-			log.Printf("Netease login failed (continuing): %v", err)
-		}
-	}
+	// if s.phone != "" {
+	// 	if err := s.neteaseClient.Login(s.phone); err != nil {
+	// 		log.Printf("Netease login failed (continuing): %v", err)
+	// 	}
+	// }
 
 	recommendPlaylists, err := s.neteaseClient.GetDailyRecommendPlaylist()
 	if err != nil || recommendPlaylists == nil {
@@ -97,8 +97,8 @@ func (s *WorkflowService) RunDailyJob() error {
 	}
 
 	const (
-		maxPlaylists        = 10 // process at most this many playlists per run
-		maxSongsPerPlaylist = 5  // collect at most this many songs per playlist
+		maxPlaylists        = 1 // process at most this many playlists per run
+		maxSongsPerPlaylist = 1  // collect at most this many songs per playlist
 	)
 
 	finalSongList := make([]*model.NeteaseSongDTO, 0)
@@ -295,7 +295,6 @@ func (s *WorkflowService) RunEmbeddingJob(ctx context.Context) error {
 			}
 		}
 	}
-
 
 	log.Println("Embedding job finished.")
 	s.bus.emit(EvEmbeddingDone, map[string]any{

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   ConfigProvider, theme, Layout, Typography, Input,
-  Button, Select, Space, Spin, Alert, Empty, Divider,
+  Button, Select, Space, Spin, Empty,
   notification, Tooltip
 } from 'antd';
 import {
@@ -11,7 +11,7 @@ import {
 import LoginPanel from './components/LoginPanel';
 import SongCard from './components/SongCard';
 import { useJobEvents, JobEvent } from './hooks/useJobEvents';
-import { searchSongs, triggerDailyJob, triggerEmbeddingJob, SongResult } from './api';
+import { searchSongs, triggerDailyJob, SongResult } from './api';
 import './index.css';
 
 const { Header, Content } = Layout;
@@ -101,19 +101,19 @@ const App: React.FC = () => {
     }
   };
 
-  // // ── Login screen ────────────────────────────────────────────────────────────
-  // if (!isLoggedIn) {
-  //   return (
-  //     <ConfigProvider theme={{ algorithm: theme.darkAlgorithm, token: { colorPrimary: '#7c3aed' } }}>
-  //       {contextHolder}
-  //       <div className="app-bg">
-  //         <div className="login-center">
-  //           <LoginPanel onLoginSuccess={() => setIsLoggedIn(true)} />
-  //         </div>
-  //       </div>
-  //     </ConfigProvider>
-  //   );
-  // }
+  // ── Login screen ────────────────────────────────────────────────────────────
+  if (!isLoggedIn) {
+    return (
+      <ConfigProvider theme={{ algorithm: theme.darkAlgorithm, token: { colorPrimary: '#7c3aed' } }}>
+        {contextHolder}
+        <div className="app-bg">
+          <div className="login-center">
+            <LoginPanel onLoginSuccess={() => setIsLoggedIn(true)} />
+          </div>
+        </div>
+      </ConfigProvider>
+    );
+  }
 
   // ── Main app ────────────────────────────────────────────────────────────────
   return (

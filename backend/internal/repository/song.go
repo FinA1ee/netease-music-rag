@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 
 	"netease-music-rag/backend/internal/model"
 
@@ -25,10 +26,10 @@ func (r *SongRepo) SaveSongs(songList []*model.NeteaseSongDTO) error {
 		return nil
 	}
 
-	var batch []*model.Songs
+	batch := make([]*model.Songs, 0, len(songList))
 
 	for _, dto := range songList {
-		var artists []model.Artist
+		artists := make([]model.Artist, 0, len(dto.Ar))
 		for _, ar := range dto.Ar {
 			artists = append(artists, model.Artist{ID: ar.ID, Name: ar.Name})
 		}
@@ -105,6 +106,9 @@ func (r *SongRepo) GetSongsNeedingEmbedding(ctx context.Context, limit int) ([]m
 // UpdateEmbedding writes a vector embedding for the given song_id.
 // Uses a raw Exec because GORM does not natively support the pgvector ::vector cast.
 func (r *SongRepo) UpdateEmbedding(ctx context.Context, songID int64, embedding []float32) error {
+	if len(embedding) == 0 {
+		return fmt.Errorf("embedding is empty")
+	}
 	embStr := float32SliceToString(embedding)
 	err := r.db.WithContext(ctx).Exec(
 		`UPDATE songs SET embedding = ?::vector WHERE song_id = ?`,
@@ -119,31 +123,70 @@ func (r *SongRepo) UpdateEmbedding(ctx context.Context, songID int64, embedding 
 // HasSongLLMAnalyzed returns true if the song has already been analyzed by the LLM.
 func (r *SongRepo) HasSongLLMAnalyzed(ctx context.Context, id int64) bool {
 	var count int64
-	err := r.db.WithContext(ctx).Model(&model.Songs{}).Where("song_id = ? AND description != ''", id).Count(&count).Error
+	err := r.db.WithContext(ctx).
+		Model(&model.Songs{}).
+		Where("song_id = ? AND style IS NOT NULL", id).
+		Count(&count).Error
 	return err == nil && count > 0
 }
 
 // SearchSimilarSongs returns songs ranked by cosine similarity (<=> operator in pgvector)
 // to the given query embedding. Songs without embeddings are excluded.
-func (r *SongRepo) SearchSimilarSongs(ctx context.Context, embedding []float32, limit int) ([]model.Songs, error) {
-	var songs []model.Songs
+func (r *SongRepo) SearchSimilarSongs(
+	ctx context.Context,
+	embedding []float32,
+	limit int,
+) ([]model.Songs, error) {
+	if len(embedding) == 0 {
+		return nil, fmt.Errorf("query embedding is empty")
+	}
+	if limit <= 0 {
+		limit = 5
+	}
+	if limit > 50 {
+		limit = 50
+	}
+
 	embStr := float32SliceToString(embedding)
+	args := make([]any, 0, 6)
+	var q strings.Builder
+	q.WriteString(`SELECT * FROM songs WHERE embedding IS NOT NULL`)
+
+	// if minPopularity > 0 {
+	// 	q.WriteString(` AND popularity >= ?`)
+	// 	args = append(args, minPopularity)
+	// }
+	// if exactArtist != "" {
+	// 	q.WriteString(` AND EXISTS (
+	// 		SELECT 1 FROM jsonb_array_elements(artists) AS ar
+	// 		WHERE lower(ar->>'name') = lower(?)
+	// 	)`)
+	// 	args = append(args, exactArtist)
+	// }
+	// if exactAlbum != "" {
+	// 	q.WriteString(` AND lower(album->>'name') = lower(?)`)
+	// 	args = append(args, exactAlbum)
+	// }
+	q.WriteString(` ORDER BY embedding <=> ?::vector LIMIT ?`)
+	args = append(args, embStr, limit)
+
+	var songs []model.Songs
 	err := r.db.WithContext(ctx).
-		Where("embedding IS NOT NULL").
-		Order(fmt.Sprintf("embedding <=> '%s'::vector", embStr)).
-		Limit(limit).
-		Find(&songs).Error
+		Raw(q.String(), args...).
+		Scan(&songs).Error
 	return songs, err
 }
 
 func float32SliceToString(v []float32) string {
-	str := "["
+	var b strings.Builder
+	b.Grow(len(v)*10 + 2) // coarse preallocation to reduce reallocations
+	b.WriteByte('[')
 	for i, f := range v {
 		if i > 0 {
-			str += ","
+			b.WriteByte(',')
 		}
-		str += fmt.Sprintf("%f", f)
+		b.WriteString(fmt.Sprintf("%f", f))
 	}
-	str += "]"
-	return str
+	b.WriteByte(']')
+	return b.String()
 }

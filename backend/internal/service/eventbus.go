@@ -30,10 +30,10 @@ type JobEvent struct {
 // gets its own buffered channel. Slow clients are dropped rather than blocking.
 // The last recentMax events are buffered so reconnecting clients can replay them.
 type EventBus struct {
-	mu         sync.RWMutex
-	clients    map[chan JobEvent]struct{}
-	recent     []JobEvent // ring buffer
-	recentMax  int
+	mu        sync.RWMutex
+	clients   map[chan JobEvent]struct{}
+	recent    []JobEvent // ring buffer
+	recentMax int
 }
 
 const defaultRecentMax = 20
@@ -93,7 +93,6 @@ func (b *EventBus) RecentEvents() []JobEvent {
 	copy(out, b.recent)
 	return out
 }
-
 
 // ─── Convenience helpers ──────────────────────────────────────────────────────
 

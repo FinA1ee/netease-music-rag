@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -42,18 +43,16 @@ func (h *APIHandler) RegisterRoutes(r chi.Router) {
 // Embeds the query text, runs a cosine similarity search against the pgvector
 // embedding column, and returns the top-l matching songs.
 func (h *APIHandler) Search(w http.ResponseWriter, r *http.Request) {
+	const maxLimit = 50
+
 	query := r.URL.Query().Get("q")
-	limitStr := r.URL.Query().Get("l")
 
 	if query == "" {
 		writeError(w, http.StatusBadRequest, "query param 'q' is required")
 		return
 	}
 
-	limit := 5
-	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
-		limit = l
-	}
+	limit := parseSearchLimit(r.URL.Query().Get("l"), 5, maxLimit)
 
 	resp, err := h.searchService.Search(r.Context(), model.SearchRequest{
 		Query: query,
@@ -132,9 +131,22 @@ func (h *APIHandler) LoginStatus(w http.ResponseWriter, r *http.Request) {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		log.Printf("writeJSON encode failed: %v", err)
+	}
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+func parseSearchLimit(raw string, fallback, max int) int {
+	limit := fallback
+	if l, err := strconv.Atoi(raw); err == nil && l > 0 {
+		limit = l
+	}
+	if limit > max {
+		return max
+	}
+	return limit
 }

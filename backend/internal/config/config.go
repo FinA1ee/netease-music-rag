@@ -2,18 +2,23 @@ package config
 
 import (
 	"os"
+	"strconv"
 
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	Port           string
-	PostgresDSN    string
-	GeminiAPIKey   string
-	LLMModel       string
-	EmbeddingModel string
-	NeteaseAPIURL  string
-	NeteasePhone   string
+	Port                    string
+	PostgresDSN             string
+	GeminiAPIKey            string
+	LLMModel                string
+	EmbeddingModel          string
+	NeteaseAPIURL           string
+	NeteasePhone            string
+	SearchMinPop            float32
+	SearchDistanceThreshold float32
+	SearchVectorWeight      float32
+	SearchLexicalWeight     float32
 }
 
 func Load() *Config {
@@ -39,8 +44,12 @@ func Load() *Config {
 		LLMModel:       getEnv("LLM_MODEL", ""),
 		EmbeddingModel: getEnv("EMBEDDING_MODEL", ""),
 		// Default to the Docker Compose service name; override to http://localhost:3000 locally
-		NeteaseAPIURL: getEnv("NETEASE_API_URL", "http://netease-api:3000"),
-		NeteasePhone:  getEnv("NETEASE_PHONE", ""),
+		NeteaseAPIURL:           getEnv("NETEASE_API_URL", "http://netease-api:3000"),
+		NeteasePhone:            getEnv("NETEASE_PHONE", ""),
+		SearchMinPop:            getEnvFloat32("SEARCH_MIN_POPULARITY", 30),
+		SearchDistanceThreshold: getEnvFloat32("SEARCH_DISTANCE_THRESHOLD", 1.2),
+		SearchVectorWeight:      getEnvFloat32("SEARCH_VECTOR_WEIGHT", 1.0),
+		SearchLexicalWeight:     getEnvFloat32("SEARCH_LEXICAL_WEIGHT", 0.2),
 	}
 }
 
@@ -49,4 +58,16 @@ func getEnv(key, fallback string) string {
 		return val
 	}
 	return fallback
+}
+
+func getEnvFloat32(key string, fallback float32) float32 {
+	val, ok := os.LookupEnv(key)
+	if !ok || val == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseFloat(val, 32)
+	if err != nil {
+		return fallback
+	}
+	return float32(parsed)
 }

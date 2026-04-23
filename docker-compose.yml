@@ -1,5 +1,6 @@
 
 services:
+  
   # ── PostgreSQL with pgvector ─────────────────────────────────────────────────
   postgres:
     image: pgvector/pgvector:pg16
@@ -68,7 +69,7 @@ services:
 
       # Gemini AI — must be supplied via .env or shell environment
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      LLM_MODEL: ${LLM_MODEL:-gemini-2.0-flash-lite}
+      LLM_MODEL: ${LLM_MODEL:-gemini-3.1-flash-lite}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-gemini-embedding-001}
 
   # ── Frontend (React → nginx) ─────────────────────────────────────────────────

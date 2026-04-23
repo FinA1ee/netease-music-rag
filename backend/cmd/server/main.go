@@ -34,7 +34,14 @@ func main() {
 	repo := repository.NewSongRepo(db)
 	eventBus := service.NewEventBus()
 	workflowSvc := service.NewWorkflowService(neteaseClient, llmClient, repo, cfg.NeteasePhone, eventBus)
-	searchSvc := service.NewSearchService(llmClient, repo)
+	searchSvc := service.NewSearchService(
+		llmClient,
+		repo,
+		cfg.SearchMinPop,
+		cfg.SearchDistanceThreshold,
+		cfg.SearchVectorWeight,
+		cfg.SearchLexicalWeight,
+	)
 
 	// workflowSvc.StartCron()
 
@@ -57,8 +64,12 @@ func initDB(cfg *config.Config) *gorm.DB {
 		log.Fatalf("Unable to connect to database via GORM: %v", err)
 	}
 
-	db.Exec("CREATE EXTENSION IF NOT EXISTS vector;")
-	db.AutoMigrate(&model.Songs{})
+	if err := db.Exec("CREATE EXTENSION IF NOT EXISTS vector;").Error; err != nil {
+		log.Fatalf("Unable to ensure pgvector extension: %v", err)
+	}
+	if err := db.AutoMigrate(&model.Songs{}); err != nil {
+		log.Fatalf("Unable to auto-migrate songs schema: %v", err)
+	}
 
 	log.Println("Connected to PostgreSQL successfully via GORM.")
 	return db
