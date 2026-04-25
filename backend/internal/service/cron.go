@@ -97,8 +97,8 @@ func (s *WorkflowService) RunDailyJob() error {
 	}
 
 	const (
-		maxPlaylists        = 1 // process at most this many playlists per run
-		maxSongsPerPlaylist = 1  // collect at most this many songs per playlist
+		maxPlaylists        = 5 // process at most this many playlists per run
+		maxSongsPerPlaylist = 10  // collect at most this many songs per playlist
 	)
 
 	finalSongList := make([]*model.NeteaseSongDTO, 0)
