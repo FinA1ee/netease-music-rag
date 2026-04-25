@@ -2,8 +2,9 @@
 .gitignore
 .DS_Store
 
-frontend
-
 backend/.env
 backend/main
 backend/out.log
+
+frontend/node_modules
+frontend/dist
