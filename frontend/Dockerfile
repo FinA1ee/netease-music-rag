@@ -12,12 +12,12 @@ RUN npm run build
 # ── Stage 2: serve with nginx ─────────────────────────────────────────────────
 FROM nginx:1.27-alpine
 
-# Replace the default nginx config with ours
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Render nginx config from environment variables such as PORT at container start.
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 
 # Copy the built static files from stage 1
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-EXPOSE 80
+EXPOSE 8080
 
 CMD ["nginx", "-g", "daemon off;"]

@@ -1,5 +1,5 @@
 server {
-    listen 80;
+    listen ${PORT};
     server_name _;
 
     root /usr/share/nginx/html;
@@ -7,7 +7,7 @@ server {
 
     # ── SSE stream endpoint ──────────────────────────────────────────────────
     location /api/jobs/stream {
-        proxy_pass http://backend:8080;
+        proxy_pass http://${BACKEND_UPSTREAM};
 
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -27,7 +27,7 @@ server {
 
     # ── Reverse proxy to Go backend (normal API requests) ───────────────────
     location /api/ {
-        proxy_pass http://backend:8080;
+        proxy_pass http://${BACKEND_UPSTREAM};
 
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -40,7 +40,6 @@ server {
     }
 
     # ── React SPA fallback ───────────────────────────────────────────────────
-    # All non-asset routes return index.html so React Router handles them
     location / {
         try_files $uri $uri/ /index.html;
     }

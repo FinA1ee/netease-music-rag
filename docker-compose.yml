@@ -85,8 +85,11 @@ services:
       dockerfile: Dockerfile
     container_name: netease-frontend
     restart: unless-stopped
+    environment:
+      PORT: "8080"
+      BACKEND_UPSTREAM: backend:8080
     ports:
-      - "80:80"
+      - "80:8080"
     depends_on:
       backend:
         condition: service_started
