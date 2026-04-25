@@ -27,7 +27,11 @@ func Load() *Config {
 		// Not an error — .env is optional in containerised deployments
 	}
 
+	// Prefer explicit DSN-style variables used by managed platforms such as Railway.
 	dsn := getEnv("POSTGRES_DSN", "")
+	if dsn == "" {
+		dsn = getEnv("DATABASE_URL", "")
+	}
 	if dsn == "" {
 		sslmode := getEnv("POSTGRES_SSLMODE", "disable")
 		// Build standard GORM DSN string to handle passwords with symbols seamlessly.
