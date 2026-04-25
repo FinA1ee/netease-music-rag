@@ -3,7 +3,6 @@ services:
   
   # ── PostgreSQL with pgvector ─────────────────────────────────────────────────
   postgres:
-    profiles: ["local-db"]
     image: pgvector/pgvector:pg16
     container_name: netease-postgres
     restart: unless-stopped
@@ -39,8 +38,8 @@ services:
   # ── Go backend ───────────────────────────────────────────────────────────────
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: netease-backend
     restart: unless-stopped
     env_file:
@@ -48,6 +47,8 @@ services:
     ports:
       - "8080:8080"
     depends_on:
+      postgres:
+        condition: service_healthy
       netease-api:
         condition: service_started
     environment:
@@ -56,6 +57,12 @@ services:
       # PostgreSQL — from local .env (recommended: POSTGRES_DSN for remote DB).
       # If unset, backend config falls back to POSTGRES_* defaults.
       POSTGRES_DSN: ${POSTGRES_DSN:-}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      POSTGRES_SSLMODE: ${POSTGRES_SSLMODE:-disable}
 
       # Netease API — points to the netease-api service above
       NETEASE_API_URL: http://netease-api:3000

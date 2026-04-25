@@ -1,0 +1,9 @@
+.git
+.gitignore
+.DS_Store
+
+frontend
+
+backend/.env
+backend/main
+backend/out.log

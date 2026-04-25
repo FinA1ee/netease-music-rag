@@ -1,32 +1,29 @@
 # ── Stage 1: build ────────────────────────────────────────────────────────────
-FROM golang:latest AS builder
+FROM golang:1.25-bookworm AS builder
 
-# Allow Go to download the toolchain version required by go.mod (e.g. 1.25)
-ENV GOTOOLCHAIN=auto
+WORKDIR /src/backend
 
-WORKDIR /app
+ENV CGO_ENABLED=0
+ENV GOOS=linux
 
-# Cache dependency downloads separately from source changes
-COPY go.mod go.sum ./
+# Copy module files first for better layer caching.
+COPY backend/go.mod backend/go.sum ./
 RUN go mod download
 
-COPY . .
+COPY backend/ ./
 
-# Produce a statically-linked binary (no CGO needed for pure-Go deps)
-RUN CGO_ENABLED=0 GOOS=linux go build -o server ./cmd/server/main.go
+# Build a small, reproducible Linux binary.
+RUN go build -trimpath -ldflags="-s -w" -o /out/server ./cmd/server
 
 # ── Stage 2: run ──────────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
 
 WORKDIR /app
 
-# ca-certificates is required for TLS calls to Gemini / Supabase
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+# ca-certificates is required for outbound TLS requests.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /app/server .
-
-# .env is optional — all config can be injected via docker-compose environment:
-# COPY .env .
+COPY --from=builder /out/server ./server
 
 EXPOSE 8080
 

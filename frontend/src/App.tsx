@@ -134,19 +134,19 @@ const App: React.FC = () => {
     }
   };
 
-  // // ── Login screen ────────────────────────────────────────────────────────────
-  // if (!isLoggedIn) {
-  //   return (
-  //     <ConfigProvider theme={{ algorithm: theme.darkAlgorithm, token: { colorPrimary: '#7c3aed' } }}>
-  //       {contextHolder}
-  //       <div className="app-bg">
-  //         <div className="login-center">
-  //           <LoginPanel onLoginSuccess={() => setIsLoggedIn(true)} />
-  //         </div>
-  //       </div>
-  //     </ConfigProvider>
-  //   );
-  // }
+  // ── Login screen ────────────────────────────────────────────────────────────
+  if (!isLoggedIn) {
+    return (
+      <ConfigProvider theme={{ algorithm: theme.darkAlgorithm, token: { colorPrimary: '#7c3aed' } }}>
+        {contextHolder}
+        <div className="app-bg">
+          <div className="login-center">
+            <LoginPanel onLoginSuccess={() => setIsLoggedIn(true)} />
+          </div>
+        </div>
+      </ConfigProvider>
+    );
+  }
 
   // ── Main app ────────────────────────────────────────────────────────────────
   return (
